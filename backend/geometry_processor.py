@@ -1,6 +1,9 @@
 import asyncio
+import logging
 import polyline
 from router import RouteService
+
+logger = logging.getLogger(__name__)
 
 async def enrich_with_geometries(schedule_data, input_payload):
     """
@@ -33,7 +36,7 @@ async def enrich_with_geometries(schedule_data, input_payload):
     if not unique_tags:
         return schedule_data
 
-    print(f"[GEO] Fetching geometry for {len(unique_tags)} segments...")
+    logger.info(f"[GEO] Fetching geometry for {len(unique_tags)} segments...")
 
     # --- Step 3: Fetch Data ---
     router = RouteService(max_concurrency=50)
@@ -55,7 +58,7 @@ async def enrich_with_geometries(schedule_data, input_payload):
         if src and dst:
             tasks.append(router.fetch_geometry_safe(tag, src, dst))
         else:
-            print(f"[ERROR] Missing coords: {tag}")
+            logger.error(f"[GEO] No coordinates for segment {tag}")
 
     try:
         results_list = await asyncio.gather(*tasks)

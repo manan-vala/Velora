@@ -142,9 +142,6 @@ else:
         # and broke attribute access (see compatibility probe failures).
         _input_mod.numpy.asarray = _AsArrayShim()   # type: ignore[assignment]
 
-        # ── Step 3: also patch setup_vroom_env probe so it uses correct dtype ─
-        # (No action needed; _probe_venv in setup_vroom_env calls this module.)
-
     # ── Public diagnostic helper ──────────────────────────────────────────────
     def report() -> None:
         """Print a one-line summary of the patch status."""

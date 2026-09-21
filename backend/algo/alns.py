@@ -1,3 +1,4 @@
+import logging
 import pandas as pd
 import numpy as np
 import math
@@ -6,11 +7,11 @@ import random
 from dataclasses import dataclass, field
 from typing import List, Dict, Tuple, Optional, Set
 from datetime import datetime, time as dt_time
-from pathlib import Path
-import json
 from collections import defaultdict
 import copy
 from io import BytesIO
+
+logger = logging.getLogger(__name__)
 
 # ==========================================
 # CONFIGURATION
@@ -888,13 +889,13 @@ class EnhancedALNSSolver:
                             sol.routes[best_v] = nr
                             sol.unassigned.discard(req.id)
 
-        print(f"[ALNS] Initial: served={sol.get_served_count()}/{len(self.requests_list)}")
+        logger.info(f"[ALNS] Initial: served={sol.get_served_count()}/{len(self.requests_list)}")
         return sol
 
     # ── Main solve loop ───────────────────────────────────────────────────────
 
     def solve(self, time_limit=60, result_ref=None, format_fn=None):
-        print(f"\n[ALNS] Starting (time_limit={time_limit}s)")
+        logger.info(f"[ALNS] Starting (time_limit={time_limit}s)")
         self.current_solution = self.initial_solution()
         self._update_historical_costs(self.current_solution)
         if config.USE_LOCAL_SEARCH:
@@ -985,7 +986,7 @@ class EnhancedALNSSolver:
                             (1 - config.WEIGHT_DECAY) *
                             self.destroy_scores[i] / self.destroy_usage[i])
                         self.destroy_scores[i] = self.destroy_usage[i] = 0
-                print(f"[ALNS] iter={iteration:04d} best={global_best_obj:.2f} "
+                logger.info(f"[ALNS] iter={iteration:04d} best={global_best_obj:.2f} "
                       f"served={self.global_best_solution.get_served_count()}"
                       f"/{len(self.requests_list)}")
 
@@ -994,18 +995,18 @@ class EnhancedALNSSolver:
                                 (iteration / max_iterations))
 
             if iteration - last_improvement > config.EARLY_TERMINATION_ITERATIONS:
-                print(f"[ALNS] Early stop: no improvement for "
+                logger.info(f"[ALNS] Early stop: no improvement for "
                       f"{config.EARLY_TERMINATION_ITERATIONS} iters")
                 break
             if iteration % 1000 == 0 and iteration > 0:
                 if acceptance_count / 1000 < config.MIN_ACCEPTANCE_RATE:
-                    print("[ALNS] Early stop: low acceptance rate")
+                    logger.info("[ALNS] Early stop: low acceptance rate")
                     break
                 acceptance_count = 0
 
         elapsed = time.time() - start_time
         served  = self.global_best_solution.get_served_count()
-        print(f"[ALNS] Done ({iteration} iters, {elapsed:.1f}s): "
+        logger.info(f"[ALNS] Done ({iteration} iters, {elapsed:.1f}s): "
               f"served={served}/{len(self.requests_list)}, obj={global_best_obj:.2f}")
         return self.global_best_solution
 
@@ -1162,32 +1163,3 @@ def solve_alns(input_data, matrix_edge_list, file_bytes, _result_ref=None, time_
         format_fn=_format_solution,
     )
     return _format_solution(best_sol)
-
-# ==========================================
-# STANDALONE MAIN
-# ==========================================
-
-def main():
-    try:
-        import tkinter as tk
-        from tkinter import filedialog
-        root = tk.Tk(); root.withdraw(); root.attributes('-topmost', True)
-        file_path = filedialog.askopenfilename(
-            title="Select Excel File", filetypes=[("Excel files", "*.xlsx *.xls")])
-        root.destroy()
-    except Exception:
-        file_path = input("Enter Excel file path: ").strip()
-    if not file_path:
-        print("No file selected."); return
-    with open(file_path, 'rb') as f:
-        file_bytes = f.read()
-    result = solve_alns({}, [], file_bytes)
-    out = Path(file_path).parent / f"{Path(file_path).stem}_result.json"
-    with open(out, 'w') as f:
-        json.dump(result, f, indent=2)
-    print(f"\n✅ Saved to {out}")
-    print(f"Vehicles used: {len(result['vehicles'])}")
-    print(f"Total cost: {result['summary']['total_cost_all_vehicles']}")
-
-if __name__ == "__main__":
-    main()
