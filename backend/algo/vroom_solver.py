@@ -128,22 +128,8 @@ def solve_vroom(input_data: dict, matrix_edge_list: list, file_bytes: bytes) -> 
     _osrm_lookup: dict[tuple[int, int], tuple[float, float]] = {}
 
     for entry in matrix_edge_list:
-        eid = entry.get("id", "")
-        parts = eid.split("_")
-        # Parse "{from}_{to}" — must match logic.py's naming convention.
-        # Handle "office" as a special keyword that can appear as prefix or suffix.
-        from_id = to_id = None
-        if len(parts) == 2:
-            from_id, to_id = parts[0], parts[1]
-        elif "office" in eid:
-            if eid.startswith("office_"):
-                from_id, to_id = "office", eid.replace("office_", "", 1)
-            elif eid.endswith("_office"):
-                from_id, to_id = eid.rsplit("_office", 1)[0], "office"
-        if from_id is None:
-            continue
-        idx_from = _id_to_loc_idx.get(from_id)
-        idx_to   = _id_to_loc_idx.get(to_id)
+        idx_from = _id_to_loc_idx.get(entry["from"])
+        idx_to   = _id_to_loc_idx.get(entry["to"])
         if idx_from is not None and idx_to is not None:
             km  = entry["distance_meters"] / 1000.0
             sec = entry["duration_seconds"]

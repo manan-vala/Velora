@@ -15,6 +15,8 @@ def generate_routes(data, matrix_service):
         if pair_data:
             results.append({
                 "id": id,
+                "from": id_from,
+                "to": id_to,
                 "type": type,
                 "distance_meters": pair_data["distance_meters"],
                 "duration_seconds": pair_data["duration_seconds"],

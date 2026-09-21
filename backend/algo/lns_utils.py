@@ -32,7 +32,7 @@ class Vehicle:
 
 class DistanceMatrix:
     def __init__(self, matrix_edge_list):
-        self.data = {item['id']: item for item in matrix_edge_list}
+        self.data = {(item['from'], item['to']): item for item in matrix_edge_list}
         # Store location coordinates extracted from identifiable entries
         # so we can compute haversine fallbacks when edges are missing.
         self._loc_coords: dict = {}  # id -> (lat, lng)
@@ -45,14 +45,12 @@ class DistanceMatrix:
         if from_id == to_id:
             return 0.0, 0.0
         
-        key = f"{from_id}_{to_id}"
-        if key in self.data:
-            return self.data[key]['distance_meters'] / 1000.0, self.data[key]['duration_seconds'] / 60.0
-        
-        # Try reverse just in case, though OSRM is usually directed
-        rev_key = f"{to_id}_{from_id}"
-        if rev_key in self.data:
-            return self.data[rev_key]['distance_meters'] / 1000.0, self.data[rev_key]['duration_seconds'] / 60.0
+        entry = self.data.get((from_id, to_id))
+        if entry is None:
+            # Try reverse just in case, though OSRM is usually directed
+            entry = self.data.get((to_id, from_id))
+        if entry is not None:
+            return entry['distance_meters'] / 1000.0, entry['duration_seconds'] / 60.0
 
         # Haversine-based fallback (consistent with ALNS solver)
         # Apply 1.3x road-factor: real roads are ~20-40% longer than straight-line

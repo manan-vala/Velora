@@ -40,16 +40,12 @@ async def enrich_with_geometries(schedule_data, input_payload):
     tasks = []
 
     def parse_tag(tag):
-        parts = tag.split('_')
-        # IMPORTANT: This assumes IDs do NOT contain underscores.
-        # If IDs ever contain underscores (e.g. "EMP_001"), this will break.
-        if len(parts) == 2: return parts[0], parts[1]
-        if "office" in tag:
-            if tag.startswith("office_"): return "office", tag.replace("office_", "", 1)
-            if tag.endswith("_office"): return tag.rsplit("_office", 1)[0], "office"
-        # Fallback: log a warning for ambiguous tags
-        print(f"Ambiguous route tag: '{tag}' — assuming first two parts")
-        return parts[0], parts[1]
+        # Tags are "{from}_{to}" and IDs may contain underscores, so pick the split
+        # point where both halves are known locations.
+        for i, ch in enumerate(tag):
+            if ch == "_" and tag[:i] in coord_map and tag[i + 1:] in coord_map:
+                return tag[:i], tag[i + 1:]
+        return None, None
 
     for tag in unique_tags:
         src_id, dst_id = parse_tag(tag)

@@ -64,15 +64,12 @@ def build_matrix(matrix_edge_list):
     global _MATRIX_DATA
     _MATRIX_DATA.clear()
     for item in (matrix_edge_list or []):
-        try:
-            parts = item['id'].split('_')
-            if len(parts) == 2:
-                km = item['distance_meters'] / 1000.0
-                days = item['duration_seconds'] / 86400.0
-                _MATRIX_DATA[(parts[0], parts[1])] = (km, days)
-                _MATRIX_DATA[(parts[1], parts[0])] = (km, days)
-        except Exception:
-            pass
+        km = item['distance_meters'] / 1000.0
+        days = item['duration_seconds'] / 86400.0
+        _MATRIX_DATA[(item['from'], item['to'])] = (km, days)
+    # OSRM durations are directed; only fall back to the reverse edge when one is missing.
+    for (a, b), value in list(_MATRIX_DATA.items()):
+        _MATRIX_DATA.setdefault((b, a), value)
 
 # ==========================================
 # DATA STRUCTURES
