@@ -11,3 +11,8 @@ if _missing:
 DATABASE_URL = os.environ["DATABASE_URL"].strip()
 OSRM_URL = os.environ["OSRM_URL"].strip().rstrip("/")
 OSRM_TABLE_BLOCK = int(os.environ.get("OSRM_TABLE_BLOCK", "100"))
+
+# Jobs queued or running at once before /process-routes/start answers 429.
+MAX_PENDING_JOBS = int(os.environ.get("MAX_PENDING_JOBS", "5"))
+# How long a finished job's result stays available for polling.
+JOB_RESULT_TTL_S = float(os.environ.get("JOB_RESULT_TTL_S", "3600"))

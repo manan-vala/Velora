@@ -38,7 +38,7 @@ def log_optimization_run(
     """Insert a new optimization run log and enforce the row cap.
 
     This function opens its own DB session so it can be called from any
-    context (Celery worker, CLI script, etc.) without needing a FastAPI
+    context (job worker thread, CLI script, etc.) without needing a FastAPI
     dependency-injected session.
     """
     try:

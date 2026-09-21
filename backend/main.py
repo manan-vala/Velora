@@ -1,33 +1,28 @@
 from fastapi import FastAPI, HTTPException, Depends, UploadFile, File, Form, Query
 from fastapi.middleware.cors import CORSMiddleware
 from models import OptimizationRequest
-from celery.result import AsyncResult
 from auth import router as auth_router, get_current_user
 from test_routes import router as test_router
-from worker import celery_app, process_optimization_task
+from config import MAX_PENDING_JOBS, JOB_RESULT_TTL_S
 from database import get_db, init_db
 from db_models import OptimizationRunLog
+from jobs import JobQueue, QueueFull
+from pipeline import run_optimization
 from sqlalchemy.orm import Session
 from contextlib import asynccontextmanager
 import json
 import logging
-import os
-import uuid
 
-# --- File-based Logging (shared with worker) ---
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s",
-    handlers=[
-        logging.FileHandler("worker_debug.log", mode="a"),
-        logging.StreamHandler()
-    ]
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger("fastapi_main")
+
+job_queue = JobQueue(max_pending=MAX_PENDING_JOBS, result_ttl_s=JOB_RESULT_TTL_S)
+
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     init_db()
+    job_queue.start()
     yield
 
 
@@ -48,36 +43,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-MAX_CONCURRENT_JOBS = 4  # same number as --concurrency
 
-def get_active_job_count() -> int:
-    inspector = celery_app.control.inspect(timeout=2.0)
-    active = inspector.active() or {}
-    reserved = inspector.reserved() or {}
-    
-    active_count = sum(len(tasks) for tasks in active.values())
-    reserved_count = sum(len(tasks) for tasks in reserved.values())
-    return active_count + reserved_count
-
-
-# Ensure the temporary directory exists for storing uploaded files
-TEMP_DIR = "temp_uploads"
-os.makedirs(TEMP_DIR, exist_ok=True)
-
-
-# --- Health Check: Verify Redis is alive ---
 @app.get("/health")
-async def health_check():
-    try:
-        # Ping Redis through Celery's connection
-        celery_app.control.ping(timeout=2.0)
-        return {"status": "ok", "redis": "connected"}
-    except Exception as e:
-        logger.error(f"Health check failed: {e}")
-        return {"status": "degraded", "redis": f"error: {e}"}
+def health_check():
+    return {"status": "ok", "queue_depth": job_queue.depth()}
 
 
-# Endpoint 1: Receive the payload and start the background job
+# Endpoint 1: Receive the payload and queue the optimization job
 # Auth in testing phase:
 # @app.post("/process-routes/start", dependencies=[Depends(get_current_user)])
 @app.post("/process-routes/start")
@@ -85,18 +57,8 @@ async def start_processing(
     json_data: str = Form(...),
     file: UploadFile = File(...)
 ):
-    # Gate check
-    # intended to show error when redis or celery worker is unreachable
-    current_load = get_active_job_count()
-    if current_load >= MAX_CONCURRENT_JOBS:
-        raise HTTPException(
-            status_code=429,
-            detail=f"Server is at capacity ({MAX_CONCURRENT_JOBS} jobs running). Please try again later."
-        )
-
     logger.info(f"[API] /process-routes/start called. File: {file.filename}")
-    
-    # 1. Parse the JSON string into our Pydantic model
+
     try:
         raw = json.loads(json_data)
         payload = OptimizationRequest(**raw)
@@ -108,39 +70,20 @@ async def start_processing(
         logger.error(f"[API] Validation error: {e}")
         raise HTTPException(status_code=422, detail=f"Validation error: {e}")
 
-    # 2. Save the Excel file to disk temporarily 
-    # (Since payloads can be up to 2MB, passing the file path to Celery is safest)
-    unique_id = str(uuid.uuid4())
-    temp_filename = f"{TEMP_DIR}/{unique_id}_{file.filename}"
-    
-    try:
-        with open(temp_filename, "wb") as f:
-            f.write(await file.read())
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to save uploaded file: {e}")
+    file_bytes = await file.read()
 
-    # 3. Serialize payload for Redis/Celery and dispatch
     try:
-        payload_dict = payload.model_dump()
-        # Read from the saved temp file (the UploadFile stream is already exhausted)
-        with open(temp_filename, "rb") as fb:
-            file_bytes = fb.read()
-        # Base64-encode so the bytes survive Celery's JSON serializer
-        import base64
-        file_bytes_b64 = base64.b64encode(file_bytes).decode("ascii")
-        task = process_optimization_task.delay(payload_dict, temp_filename, file_bytes_b64)
-        logger.info(f"[API] Task dispatched to Celery. task_id={task.id}")
-    except Exception as e:
-        logger.error(f"[API] Failed to dispatch task to Celery: {e}")
-        # Cleanup temp file if dispatch fails
-        if os.path.exists(temp_filename):
-            os.remove(temp_filename)
-        raise HTTPException(status_code=500, detail=f"Failed to queue task: {e}")
+        task_id = job_queue.submit(lambda job_id: run_optimization(job_id, payload, file_bytes))
+    except QueueFull:
+        raise HTTPException(
+            status_code=429,
+            detail=f"Server is at capacity ({MAX_PENDING_JOBS} jobs queued). Please try again later."
+        )
+    logger.info(f"[API] Job queued. task_id={task_id}")
 
-    # 4. Return receipt immediately
     return {
-        "status": "queued", 
-        "task_id": task.id,
+        "status": "queued",
+        "task_id": task_id,
         "message": "Optimization task started in the background."
     }
 
@@ -149,27 +92,16 @@ async def start_processing(
 # Auth in testing phase:
 # @app.get("/process-routes/status/{task_id}", dependencies=[Depends(get_current_user)])
 @app.get("/process-routes/status/{task_id}")
-async def get_processing_status(task_id: str):
-    task_result = AsyncResult(task_id, app=celery_app)
-    logger.info(f"[API] Status poll for task_id={task_id}, state={task_result.state}")
+def get_processing_status(task_id: str):
+    job = job_queue.get(task_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Unknown or expired task.")
 
-    if task_result.state == 'PENDING' or task_result.state == 'STARTED':
-        return {"status": "processing"}
-
-    elif task_result.state == 'SUCCESS':
-        return {
-            "status": "completed",
-            "result": task_result.result
-        }
-
-    elif task_result.state == 'FAILURE':
-        return {
-            "status": "failed",
-            "error": str(task_result.info)
-        }
-
-    # Fallback for other states (e.g., REJECTED, REVOKED)
-    return {"status": task_result.state.lower()}
+    if job.status == "completed":
+        return {"status": "completed", "result": job.result}
+    if job.status == "failed":
+        return {"status": "failed", "error": job.error}
+    return {"status": "processing"}
 
 
 # --- Optimization Run Logs ---
