@@ -101,8 +101,11 @@ The mapping interface (`MapInterface.tsx` for desktop, `MobileGoogleMap` for mob
   useOptimization.ts         TanStack Query polling logic (desktop)
   useMobileOptimization.ts   TanStack Query polling logic (mobile)
 
+/app/api/optimize            Web-only API routes proxying to the Cloudflare Worker (*.web.ts)
+
 /lib
-  api.ts                     Backend API client (start job, check status)
+  api.ts                     Client for the /api/optimize routes (start job, check status)
+  worker.ts                  Server-side Worker proxy used by the API routes
   excel-parser.ts            Excel file parsing with ExcelJS
   export-excel.ts            Optimization result export to .xlsx
   map-utils.ts               Polyline decoding and map coordinate utilities
@@ -116,15 +119,15 @@ The mapping interface (`MapInterface.tsx` for desktop, `MobileGoogleMap` for mob
 
 ### Prerequisites
 
-- Node.js v18 or higher
+- Node.js 20.9 or higher (required by Next.js 16)
 - npm, yarn, or pnpm
 - A Google Maps API key with the following APIs enabled: Maps JavaScript API, Places API, and Geometry Library
 
 ### 1. Clone the repository
 
 ```bash
-git clone <repository-url>
-cd route-opti-frontend
+git clone git@github.com:manan-vala/Velora.git
+cd Velora/frontend
 ```
 
 ### 2. Install dependencies
@@ -137,11 +140,12 @@ yarn install
 
 ### 3. Configure environment variables
 
-Create a `.env` file in the project root:
+Create a `.env` file in `frontend/`:
 
 ```env
 NEXT_PUBLIC_MAPS_API_KEY=your_google_maps_api_key_here
-NEXT_PUBLIC_MAIN_API_URL=https://api.domain.com/process-routes
+WORKER_URL=https://oracle-a1-worker.manan-vala.workers.dev
+WORKER_TOKEN=your_worker_token_here
 ```
 
 Refer to the [Environment Variables](#environment-variables) section below for details on each variable.
@@ -160,18 +164,38 @@ The application will be available at `http://localhost:3000`.
 
 ## Environment Variables
 
-| Variable                   | Required | Description                                                                                                |
-| -------------------------- | -------- | ---------------------------------------------------------------------------------------------------------- |
-| `NEXT_PUBLIC_MAPS_API_KEY` | Yes      | Google Maps API key used to load the Maps JavaScript API and render the map.                               |
-| `NEXT_PUBLIC_MAIN_API_URL` | Yes      | Base URL for the backend optimization engine. The app appends `/start` and `/status/{taskId}` to this URL. |
+| Variable                   | Used by   | Description                                                                                                  |
+| -------------------------- | --------- | ------------------------------------------------------------------------------------------------------------ |
+| `NEXT_PUBLIC_MAPS_API_KEY` | web + app | Google Maps API key used to load the Maps JavaScript API and render the map.                                 |
+| `WORKER_URL`               | web       | Cloudflare Worker URL. Server-only: read by the API routes, never sent to the browser.                       |
+| `WORKER_TOKEN`             | web       | Token the API routes send to the Worker as `x-auth-token`. Server-only.                                      |
+| `NEXT_PUBLIC_API_BASE_URL` | app       | Only for `build:app`: `https://<vercel-domain>/api/optimize`. The web build leaves it unset and calls `/api/optimize`. |
+
+On Vercel, set `NEXT_PUBLIC_MAPS_API_KEY`, `WORKER_URL` and `WORKER_TOKEN`, with the project root directory set to `frontend/`.
+
+---
+
+## Build Targets
+
+One codebase produces two builds:
+
+- **Web** (`npm run build`, what Vercel runs): a normal Next.js app including the API routes in
+  `app/api/optimize/*/route.web.ts`. The browser calls these routes, and they call the Worker
+  server-side with `WORKER_TOKEN`, so the token never reaches the client.
+- **Android app** (`npm run build:app`): a static export into `out/` for Capacitor. Files ending in
+  `.web.ts` are excluded, so it contains no API routes and no secrets. The app calls the web
+  deployment's API routes at `NEXT_PUBLIC_API_BASE_URL`, which allow the Capacitor origin
+  `https://localhost` via CORS.
 
 ---
 
 ## Available Scripts
 
-| Command         | Description                        |
-| --------------- | ---------------------------------- |
-| `npm run dev`   | Start the development server       |
-| `npm run build` | Create a production build          |
-| `npm run start` | Serve the production build locally |
-| `npm run lint`  | Run ESLint across the codebase     |
+| Command             | Description                                              |
+| ------------------- | -------------------------------------------------------- |
+| `npm run dev`       | Start the development server (web target)                |
+| `npm run build`     | Production web build (used by Vercel)                    |
+| `npm run build:app` | Static export for the Android app into `out/`            |
+| `npm run cap:sync`  | `build:app`, then sync `out/` into the Android project   |
+| `npm run start`     | Serve the production web build locally                   |
+| `npm run lint`      | Run ESLint across the codebase                           |

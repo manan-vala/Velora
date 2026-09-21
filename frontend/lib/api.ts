@@ -4,26 +4,20 @@ import {
   OptimizationStatusResponse,
 } from "@/types";
 
-const apiURL = process.env.NEXT_PUBLIC_MAIN_API_URL || "";
+// Web calls its own Vercel API routes; the app build sets the absolute Vercel URL.
+const apiURL = process.env.NEXT_PUBLIC_API_BASE_URL || "/api/optimize";
 
 // 1. Function to DROP OFF data and get a Task ID
 export const startOptimizationJob = async (
   data: ParsedData,
   file: File,
 ): Promise<string> => {
-  if (!apiURL) {
-    throw new Error(
-      "API URL is not defined. Please set NEXT_PUBLIC_MAIN_API_URL in your .env file.",
-    );
-  }
-
   console.log("[API] Parsed Excel JSON being sent:", data);
 
   const formData = new FormData();
   formData.append("json_data", JSON.stringify(data));
   formData.append("file", file, file.name);
 
-  // Note: Adjust the endpoint path "/optimize/start" to match your backend
   const response = await fetch(`${apiURL}/start`, {
     method: "POST",
     body: formData, // Do NOT set Content-Type, browser handles boundary automatically
@@ -41,7 +35,6 @@ export const startOptimizationJob = async (
 export const checkOptimizationStatus = async (
   taskId: string,
 ): Promise<OptimizationStatusResponse> => {
-  // Note: Adjust the endpoint path "/optimize/status/" to match your backend
   const response = await fetch(`${apiURL}/status/${taskId}`);
 
   if (!response.ok) throw new Error(`Status Error: ${response.status}`);
