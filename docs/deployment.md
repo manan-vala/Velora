@@ -46,7 +46,7 @@ Android app (APK) ─────┘        │  server-side: adds x-auth-token 
 | Frontend (Android) | Capacitor APK built from the same code | Calls the Vercel API routes; contains no secrets |
 | API gateway | Cloudflare Worker + Workers VPC | Its code lives outside this repo, with the VM notes |
 | Backend | Container on the VM | Image `ghcr.io/manan-vala/velora-backend` |
-| Routing | OSRM container on the VM | India southern-zone map extract, MLD algorithm |
+| Routing | OSRM container on the VM | Bangalore + ~100 km radius, MLD algorithm |
 | Database | Postgres container on the VM | Run logs and users |
 
 ## 3. Decisions and why
@@ -115,8 +115,10 @@ There's no free quota for a second VM. Containers still keep services separate:
 - **Port 8010.** The pm2 placeholder test app is on port 8001, so the backend uses 8010.
 - **OSRM settings:**
   - `--max-table-size 2000`. The default of 100 is too small for employees + vehicles + office.
-  - `osrm/prepare.sh` downloads the Geofabrik southern-zone extract (~531 MB) and builds the MLD graph.
-    Stop `velora-backend` while it runs, to free RAM.
+  - `osrm/prepare.sh` downloads the Geofabrik southern-zone extract (~531 MB), then clips it with
+    `osmium extract` to a bbox around Bangalore + ~100 km before building the MLD graph. The full
+    southern-zone graph (five states) runs to ~6 GB on disk and doesn't fit the VM's memory budget;
+    the clipped graph is far smaller. Stop `velora-backend` while this runs, to free RAM.
 - **`SOLVER_MAX_WORKERS=1`.** OSRM shares the same 2 OCPUs and has to keep answering during a solve.
 - **First-time setup:** clone → `cp .env.example .env` → `bash osrm/prepare.sh` → `docker compose up -d`.
 
