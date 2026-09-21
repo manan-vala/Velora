@@ -1,0 +1,104 @@
+"use client";
+import { useRouter } from 'next/navigation';
+const svgPaths = {
+  p129bf780: "M4.26937 12.2421C7.23691 12.2421 8.99965 9.92145 8.99965 5.99168C8.99965 4.51195 8.71664 3.26672 8.17488 2.30449C7.39055 0.808594 6.0402 0 4.33406 0C1.79508 0 0 1.70613 0 4.09957C0 6.34746 1.61719 7.98082 3.84082 7.98082C5.20734 7.98082 6.31512 7.34203 6.86496 6.23426H6.88922C6.88922 6.23426 6.92156 6.23426 6.92965 6.23426C6.94582 6.23426 7.00242 6.23426 7.00242 6.23426C7.00242 8.90262 5.99168 10.4955 4.28555 10.4955C3.28289 10.4955 2.50664 9.9457 2.2398 9.06434H0.161719C0.509414 10.9807 2.13469 12.2421 4.26937 12.2421ZM4.34215 6.3232C2.99988 6.3232 2.04574 5.36906 2.04574 4.03488C2.04574 2.73305 3.0484 1.73848 4.35023 1.73848C5.65207 1.73848 6.65473 2.74922 6.65473 4.06723C6.65473 5.36906 5.67633 6.3232 4.34215 6.3232Z",
+  p149d3700: "M12.4122 12.1289C13.1804 12.1289 13.706 11.5791 13.706 10.8513C13.706 10.1155 13.1804 9.57375 12.4122 9.57375C11.6522 9.57375 11.1185 10.1155 11.1185 10.8513C11.1185 11.5791 11.6522 12.1289 12.4122 12.1289ZM12.4122 6.06445C13.1804 6.06445 13.706 5.5227 13.706 4.79496C13.706 4.05914 13.1804 3.51738 12.4122 3.51738C11.6522 3.51738 11.1185 4.05914 11.1185 4.79496C11.1185 5.5227 11.6522 6.06445 12.4122 6.06445Z",
+  p1d94f940: "M21.2747 11.9591H23.272V9.78398H24.8487V8.02125H23.272V0.291094H20.3287C18.2668 3.39609 16.6253 5.99168 15.5742 7.92422V9.78398H21.2747V11.9591ZM17.5067 7.94848C18.8651 5.55504 20.078 3.63867 21.1939 1.98914H21.3071V8.06977H17.5067V7.94848Z",
+  p1f076600: "M72.128 4.05098V8.46698C73.0164 8.09297 73.5942 7.22292 73.5942 6.25898C73.5942 5.29504 73.0164 4.42499 72.128 4.05098",
+  p22b82b28: "M2.20801 7.73123C2.81768 7.73123 3.31145 8.22508 3.31152 8.83474V11.0427C3.31152 11.6525 2.81773 12.1472 2.20801 12.1472H1.10352C0.494016 12.147 0 11.6523 0 11.0427V8.83474C7.36123e-05 8.22524 0.494061 7.73149 1.10352 7.73123H2.20801ZM7.36035 5.52322C7.96986 5.52341 8.46379 6.0172 8.46387 6.62673V11.0427C8.46387 11.6524 7.96991 12.147 7.36035 12.1472H6.25586C5.6462 12.1472 5.15234 11.6524 5.15234 11.0427V6.62673C5.15242 6.01712 5.64625 5.52329 6.25586 5.52322H7.36035ZM12.5117 2.94705C13.1213 2.94705 13.616 3.441 13.6162 4.05056V11.0427C13.6162 11.6525 13.1214 12.1472 12.5117 12.1472H11.4082C10.7985 12.1472 10.3037 11.6525 10.3037 11.0427V4.05056C10.3039 3.441 10.7986 2.94705 11.4082 2.94705H12.5117ZM17.6641 0.370874C18.2736 0.370908 18.7673 0.864913 18.7676 1.47439V11.0427C18.7676 11.6525 18.2738 12.1472 17.6641 12.1472H16.5596C15.95 12.147 15.4561 11.6523 15.4561 11.0427V1.47439C15.4563 0.865035 15.9502 0.371107 16.5596 0.370874H17.6641Z",
+  p23492c80: "M30.3091 9.27439C31.7173 8.0833 33.7798 8.0833 35.188 9.27439C35.2588 9.33845 35.3003 9.42894 35.3023 9.52439C35.3041 9.61964 35.2667 9.7115 35.1988 9.77829L32.9937 12.0039C32.929 12.0693 32.8405 12.1064 32.7486 12.1064C32.6568 12.1064 32.569 12.0691 32.5044 12.0039L30.2984 9.77829C30.2305 9.71146 30.193 9.61963 30.1948 9.52439C30.1969 9.42901 30.2384 9.33839 30.3091 9.27439ZM27.3667 6.30564C30.4007 3.48339 35.0993 3.48339 38.1333 6.30564C38.2017 6.3718 38.2408 6.46245 38.2417 6.55759C38.2427 6.65283 38.2053 6.74491 38.1382 6.81247L36.8638 8.09958C36.7325 8.23108 36.52 8.2344 36.3853 8.10642C35.389 7.20422 34.0927 6.70497 32.7486 6.70505C31.4054 6.70564 30.1104 7.20485 29.1148 8.10642C28.98 8.23444 28.7676 8.2311 28.6363 8.09958L27.3618 6.81247C27.2946 6.74501 27.2574 6.65286 27.2583 6.55759C27.2592 6.46242 27.2983 6.37179 27.3667 6.30564ZM24.4243 3.3447C29.0778 -1.11487 36.4193 -1.11493 41.0728 3.3447C41.14 3.41091 41.1777 3.50131 41.1782 3.59568C41.1788 3.69016 41.1423 3.78157 41.0757 3.84861L39.7993 5.13572C39.6679 5.26789 39.4543 5.26976 39.3208 5.13962C37.5479 3.4541 35.1949 2.51473 32.7486 2.51462C30.3022 2.51465 27.9494 3.45416 26.1763 5.13962C26.0429 5.26996 25.8292 5.26809 25.6978 5.13572L24.4204 3.84861C24.3539 3.78152 24.3173 3.69016 24.3179 3.59568C24.3185 3.50122 24.3569 3.41089 24.4243 3.3447Z",
+  p2dbc2080: "M92 30.8258C67.0241 25.3399 19.2852 9.92697 0 0V27.691C12.4353 32.3933 42.1113 42.6337 61.3333 45.9775C42.1774 49.3776 12.8668 59.2215 0.474227 64.0028V93C19.6932 82.9062 67.1099 67.7523 92 62.1742V30.8258Z",
+  p35489100: "M48.944 3.68301C48.944 2.87004 49.6031 2.21101 50.416 2.21101H67.344C68.157 2.21101 68.816 2.87004 68.816 3.68301V8.83501C68.816 9.64797 68.157 10.307 67.344 10.307H50.416C49.6031 10.307 48.944 9.64797 48.944 8.83501V3.68301Z",
+  p3f192280: "M5.9502 6.65674L10.8999 11.6065L21.5074 1M1 6.70703L5.94975 11.6568M16.5562 1.05029L11.2529 6.35359",
+  p3f85be00: "M49.6804 0.554752H68.0798C69.4008 0.554752 70.4723 1.62626 70.4723 2.94733V9.57135C70.4721 10.8923 69.4007 11.963 68.0798 11.963H49.6804C48.3594 11.963 47.288 10.8923 47.2878 9.57135V2.94733C47.2878 1.62626 48.3593 0.554752 49.6804 0.554752Z",
+  pa1fe4c0: "M17.3508 2.77988C15.6789 1.65588 13.6661 1 11.5 1C5.70101 1 1 5.70101 1 11.5C1 17.299 5.70101 22 11.5 22C17.299 22 22 17.299 22 11.5C22 11.0442 21.971 10.5952 21.9146 10.1548",
+  pf7d8bb0: "M29.2963 11.9591H31.3825V0.291094H29.3044L26.256 2.42578V4.43109L29.1589 2.39344H29.2963V11.9591Z",
+};
+
+function Group() {
+  return (
+    <div className="absolute h-[93px] left-[155px] top-[391px] w-[92px]">
+      <svg className="absolute block size-full" fill="none" preserveAspectRatio="none" viewBox="0 0 92 93">
+        <g id="Group 169">
+          <path d={svgPaths.p2dbc2080} fill="var(--fill-0, #2F2E2E)" id="Vector" />
+        </g>
+      </svg>
+    </div>
+  );
+}
+
+function WarningCircleCheck({ className }: { className?: string }) {
+  return (
+    <div className={className || "absolute left-[303px] overflow-clip size-[28px] top-[585px]"} data-name="Warning / Circle_Check">
+      <div className="absolute inset-[12.5%]" data-name="Vector">
+        <div className="absolute inset-[-4.76%]">
+          <svg className="block size-full" fill="none" preserveAspectRatio="none" viewBox="0 0 23 23">
+            <path d={svgPaths.pa1fe4c0} id="Vector" stroke="var(--stroke-0, #8E8E93)" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
+          </svg>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function InterfaceCheckAllBig({ className }: { className?: string }) {
+  return (
+    <div className={className || "absolute left-[309px] overflow-clip size-[24px] top-[584px]"} data-name="Interface / Check_All_Big">
+      <div className="absolute inset-[26.43%_6.01%_29.17%_8.54%]" data-name="Vector">
+        <div className="absolute inset-[-9.38%_-4.88%]">
+          <svg className="block size-full" fill="none" preserveAspectRatio="none" viewBox="0 0 22.5074 12.6568">
+            <path d={svgPaths.p3f192280} id="Vector" stroke="var(--stroke-0, #8E8E93)" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
+          </svg>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+function ArrowArrowRightLg({ className }: { className?: string }) {
+  return (
+    <div className={className || "absolute left-[273px] overflow-clip size-[24px] top-[756px]"} data-name="Arrow / Arrow_Right_LG">
+      <div className="absolute inset-[29.17%_12.5%]" data-name="Vector">
+        <div className="absolute inset-[-10%_-5.56%]">
+          <svg className="block size-full" fill="none" preserveAspectRatio="none" viewBox="0 0 20 12">
+            <path d="M19 6L14 1M19 6L14 11M19 6H1" id="Vector" stroke="var(--stroke-0, white)" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
+          </svg>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function MobileAuth() {
+  const router = useRouter();
+  const handleGetStarted = () => {
+    router.push('/mobileauth/signup');
+  };
+  return (
+    <div className="min-h-screen w-full flex items-center justify-center bg-gray-100 px-4">
+      <div className="w-full max-w-[430px] min-h-screen sm:h-[932px] flex items-center justify-center">
+        <div className="bg-white overflow-clip relative rounded-[20px] w-full h-full sm:size-full flex flex-col items-center justify-center" data-name="iPhone 16 & 17 Pro - 26">
+          <div className="absolute bg-white left-[111px] rounded-[30px] shadow-[5px_8px_19px_5px_rgba(0,0,0,0.25)] size-[180px] top-[347px]" />
+          <div className="absolute bg-white border border-[#c1c1c1] border-solid h-[68px] left-[49px] rounded-[30px] top-[565px] w-[320px]" />
+          <div
+            className="absolute bg-black border border-[#c1c1c1] border-solid h-[68px] left-[34px] rounded-[30px] top-[734px] w-[345px] cursor-pointer"
+            onClick={handleGetStarted}
+            style={{ zIndex: 2 }}
+          />
+          <Group />
+          <p className="absolute font-['Montserrat:Regular',sans-serif] font-normal leading-[normal] left-[62px] text-[#818181] text-[23px] top-[585px]">Optimize Your Move</p>
+          <span
+            className="absolute font-['Montserrat:Bold',sans-serif] font-bold leading-[normal] left-[34px] w-[345px] h-[68px] flex items-center justify-center text-[23px] text-white top-[734px] pointer-events-none"
+            style={{ zIndex: 3 }}
+          >
+            Get Started
+          </span>
+          <WarningCircleCheck />
+          <InterfaceCheckAllBig />
+          <ArrowArrowRightLg />
+        </div>
+      </div>
+    </div>
+  );
+}
