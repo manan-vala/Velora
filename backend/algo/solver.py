@@ -1,30 +1,11 @@
 import json
-import importlib.util
 import sys
 import os
-import threading
 import concurrent.futures
+from . import alns as alns_mod
 from .lns_algo import LNSOptimizer
 from .vroom_solver import solve_vroom
 from .feasibilityfinal import get_feasibility_score
-
-# sys.modules is shared across all threads. Guard the dynamic import so that
-# concurrent calls to solve_vrp() don't race when registering the ALNS module.
-_import_lock = threading.Lock()
-
-# Trick to import 16-02.py which is not a valid python module name
-def import_custom_module(module_name, file_path):
-    with _import_lock:
-        if module_name in sys.modules:
-            return sys.modules[module_name]
-        spec = importlib.util.spec_from_file_location(module_name, file_path)
-        module = importlib.util.module_from_spec(spec)
-        # Tell Python this module lives inside the 'algo' package so that
-        # relative imports (e.g. `from .lns_utils import ...`) work correctly.
-        module.__package__ = __package__  # same package as solver.py ("algo")
-        sys.modules[module_name] = module
-        spec.loader.exec_module(module)
-        return module
 
 def solve_vrp(input_data, matrix_edge_list, file_bytes):
     """
@@ -40,9 +21,6 @@ def solve_vrp(input_data, matrix_edge_list, file_bytes):
         return ("LNS", lns.get_formatted_output())
 
     def run_alns():
-        curr_dir = os.path.dirname(__file__)
-        alns_mod = import_custom_module(
-            "alns_solver_16_02", os.path.join(curr_dir, "16-02.py"))
         result_ref = [None]  # shared container written by ALNS thread
         with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
             fut = pool.submit(alns_mod.solve_alns,

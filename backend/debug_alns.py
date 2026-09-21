@@ -8,17 +8,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(HERE, "algo"))
 
-import importlib.util, types
-
-# ── Patch 16-02.py so relative imports work ──────────────────────────────────
-spec = importlib.util.spec_from_file_location(
-    "alns_solver_16_02",
-    os.path.join(HERE, "algo", "16-02.py")
-)
-alns_mod = importlib.util.module_from_spec(spec)
-alns_mod.__package__ = "algo"
-sys.modules["alns_solver_16_02"] = sys.modules.get("algo.alns_solver_16_02", alns_mod)
-spec.loader.exec_module(alns_mod)
+from algo import alns as alns_mod
 
 from algo.lns_utils import DistanceMatrix, time_to_minutes
 from io import BytesIO

@@ -16,7 +16,7 @@ algo/
 ├── lns_simulator.py         # LNS: Route simulation engine (cost, time, violations)
 ├── lns_utils.py             # Shared data structures, distance matrix, helpers
 │
-├── 16-02.py                 # ALNS: Enhanced Adaptive Large Neighborhood Search
+├── alns.py                 # ALNS: Enhanced Adaptive Large Neighborhood Search
 │
 ├── vroom_solver.py          # VROOM: Subprocess launcher (isolated venv bridge)
 ├── vroom_bridge.py          # VROOM: Standalone solver (runs inside isolated venv)
@@ -42,7 +42,7 @@ All surviving solutions are scored by `feasibilityfinal.py`. The **selection log
 3. Among ties, **minimize** effective objective = `objective + (soft_violations × 100)`.
 4. If no valid solutions exist, pick the one with the fewest hard violations, then most served, then lowest effective objective.
 
-The `16-02.py` module is imported dynamically (via `importlib`) because its filename is not a valid Python identifier. A thread lock guards the import to prevent races when concurrent Celery tasks call `solve_vrp()` simultaneously.
+
 
 ---
 
@@ -128,7 +128,7 @@ Penalty values: capacity violation = 5,000,000 per excess passenger; time window
 
 ---
 
-## Solver 2: ALNS — Adaptive Large Neighborhood Search (`16-02.py`)
+## Solver 2: ALNS — Adaptive Large Neighborhood Search (`alns.py`)
 
 A more sophisticated variant of LNS with **adaptive operator selection**. Rather than choosing destruction operators uniformly at random, ALNS tracks each operator's historical performance and adjusts selection probabilities accordingly.
 
@@ -330,11 +330,11 @@ The `routes` array contains link tags in `"{from}_{to}"` format, which are consu
 | LNS local search max steps          | `lns_algo.py`     | 100          |
 | LNS unassigned penalty (W5)         | `lns_algo.py`     | 20,000       |
 | LNS hard violation penalty (W6)     | `lns_algo.py`     | 10,000,000   |
-| ALNS max iterations                 | `16-02.py`        | 10,000       |
-| ALNS time limit                     | `16-02.py`        | 38s          |
-| ALNS early termination (stagnation) | `16-02.py`        | 300 iters    |
-| ALNS operator weight decay          | `16-02.py`        | 0.8          |
-| ALNS unassigned penalty             | `16-02.py`        | 1,000,000    |
+| ALNS max iterations                 | `alns.py`        | 10,000       |
+| ALNS time limit                     | `alns.py`        | 38s          |
+| ALNS early termination (stagnation) | `alns.py`        | 300 iters    |
+| ALNS operator weight decay          | `alns.py`        | 0.8          |
+| ALNS unassigned penalty             | `alns.py`        | 1,000,000    |
 | ALNS hard timeout in solver.py      | `solver.py`       | 150s         |
 | VROOM exploration level             | `vroom_bridge.py` | 5            |
 | VROOM threads                       | `vroom_bridge.py` | 2            |
