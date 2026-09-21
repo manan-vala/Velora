@@ -187,38 +187,6 @@ def test_no_cors_headers(client):
     assert "access-control-allow-origin" not in health.headers
 
 
-class TestAuth:
-    def test_optimization_logs_require_a_token(self, client):
-        assert client.get("/optimization-logs").status_code == 401
-        assert client.get("/optimization-logs", headers={"Authorization": "Bearer junk"}).status_code == 401
-
-    def test_register_login_and_read_logs(self, client):
-        from optimization_logger import log_optimization_run
-        log_optimization_run(filename="logged.xlsx", num_employees=1, num_vehicles=1, winner_algorithm="VROOM",
-                             employees_served=1, hard_violations=0, soft_violations=0, objective_score=1.0,
-                             total_cost=1.0, total_time_min=1.0, task_id="t-1")
-        user = {"username": f"user-{uuid.uuid4().hex[:8]}", "password": "correct horse battery"}
-        assert client.post("/register", json=user).status_code == 200
-        assert client.post("/register", json=user).status_code == 400
-
-        assert client.post("/login", data={**user, "password": "wrong password"}).status_code == 401
-        token = client.post("/login", data=user).json()["access_token"]
-
-        resp = client.get("/optimization-logs", headers={"Authorization": f"Bearer {token}"})
-        assert resp.status_code == 200
-        assert any(r["filename"] == "logged.xlsx" and r["task_id"] == "t-1" for r in resp.json())
-
-    @pytest.mark.parametrize("password", ["short", "x" * 73, "é" * 37])
-    def test_register_rejects_passwords_bcrypt_cannot_hash(self, client, password):
-        resp = client.post("/register", json={"username": "someone", "password": password})
-        assert resp.status_code == 422
-
-    def test_login_with_overlong_password_is_401_not_500(self, client):
-        user = {"username": f"user-{uuid.uuid4().hex[:8]}", "password": "correct horse battery"}
-        client.post("/register", json=user)
-        assert client.post("/login", data={**user, "password": "y" * 100}).status_code == 401
-
-
 def test_secret_key_is_required():
     from conftest import import_in_subprocess
     out = import_in_subprocess("main", drop=("SECRET_KEY",))

@@ -11,6 +11,8 @@ if _missing:
 DATABASE_URL = os.environ["DATABASE_URL"].strip()
 OSRM_URL = os.environ["OSRM_URL"].strip().rstrip("/")
 SECRET_KEY = os.environ["SECRET_KEY"].strip()
+# How long a login stays valid. The frontend's session cookie expires with the token.
+JWT_EXPIRE_MINUTES = int(os.environ.get("JWT_EXPIRE_MINUTES", str(7 * 24 * 60)))
 OSRM_TABLE_BLOCK = int(os.environ.get("OSRM_TABLE_BLOCK", "100"))
 
 # Jobs queued or running at once before /process-routes/start answers 429.
