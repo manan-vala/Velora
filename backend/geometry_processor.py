@@ -57,8 +57,10 @@ async def enrich_with_geometries(schedule_data, input_payload):
         else:
             print(f"[ERROR] Missing coords: {tag}")
 
-    results_list = await asyncio.gather(*tasks)
-    await router.close()
+    try:
+        results_list = await asyncio.gather(*tasks)
+    finally:
+        await router.close()
 
     # # --- Step 4: Compress & Store (Old) ---
     # geometry_map = {}

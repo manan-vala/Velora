@@ -1,7 +1,4 @@
-import subprocess
-import sys
-from pathlib import Path
-
+from conftest import import_in_subprocess
 from sqlalchemy import inspect, select, func
 
 import database
@@ -9,8 +6,6 @@ from database import Base, SessionLocal, init_db
 from db_models import OptimizationRunLog
 import optimization_logger
 from optimization_logger import log_optimization_run
-
-BACKEND = Path(__file__).resolve().parent.parent
 
 
 def _reset_schema():
@@ -34,9 +29,8 @@ def test_init_db_creates_every_table():
 
 
 def test_importing_auth_does_not_touch_the_database():
-    code = "import auth; import database; from sqlalchemy import inspect; print(inspect(database.engine).get_table_names())"
-    env = {"DATABASE_URL": "sqlite://", "PATH": ""}
-    out = subprocess.run([sys.executable, "-c", code], cwd=BACKEND, env=env, capture_output=True, text=True)
+    out = import_in_subprocess(
+        "auth", code="import database; from sqlalchemy import inspect; print(inspect(database.engine).get_table_names())")
     assert out.returncode == 0, out.stderr
     assert out.stdout.strip() == "[]"
 
@@ -63,7 +57,6 @@ def test_run_log_is_written_and_capped(monkeypatch):
 
 
 def test_missing_database_url_fails_with_clear_message():
-    out = subprocess.run([sys.executable, "-c", "import database"], cwd=BACKEND,
-                         env={"PATH": ""}, capture_output=True, text=True)
+    out = import_in_subprocess("database", drop=("DATABASE_URL",))
     assert out.returncode != 0
     assert "Missing required environment variables: DATABASE_URL" in out.stderr

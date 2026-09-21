@@ -13,6 +13,20 @@ os.environ.setdefault("OSRM_URL", "http://osrm.test:5000")
 os.environ.setdefault("SECRET_KEY", "test-secret-key")
 
 TEMPLATES = Path(__file__).resolve().parent.parent / "algo" / "templts"
+BACKEND = Path(__file__).resolve().parent.parent
+
+REQUIRED_ENV = {"DATABASE_URL": "sqlite://", "OSRM_URL": "http://osrm.test:5000", "SECRET_KEY": "k"}
+
+
+def import_in_subprocess(module: str, drop=(), code: str = ""):
+    """Import a backend module in a fresh interpreter with the required env minus `drop`."""
+    import subprocess
+    import sys
+
+    env = {k: v for k, v in REQUIRED_ENV.items() if k not in drop}
+    env["PATH"] = os.environ.get("PATH", "")
+    return subprocess.run([sys.executable, "-c", f"import {module}\n{code}"], cwd=BACKEND,
+                          env=env, capture_output=True, text=True)
 
 
 @pytest.fixture
