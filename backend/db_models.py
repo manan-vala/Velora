@@ -45,6 +45,7 @@ class OptimizationRunLog(Base):
 
     # --- Traceability ---
     task_id = Column(String, nullable=True)
+    username = Column(String, nullable=True, index=True)  # who ran it
     vehicles_in_solution = Column(Integer, nullable=True)
 
     def __repr__(self):

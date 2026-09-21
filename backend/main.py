@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from auth import router as auth_router, get_current_user
 from config import MAX_PENDING_JOBS, JOB_RESULT_TTL_S, MAX_UPLOAD_BYTES
 from database import get_db, init_db
-from db_models import OptimizationRunLog
+from db_models import OptimizationRunLog, User
 from jobs import JobQueue, QueueFull
 from models import OptimizationRequest
 from pipeline import run_optimization
@@ -63,12 +63,11 @@ def _check_workbook(file_bytes: bytes) -> None:
         raise HTTPException(status_code=422, detail=f"Workbook is missing sheet(s): {', '.join(missing)}.")
 
 
-# Auth on the optimization endpoints waits for the frontend login flow; until then the
-# Cloudflare Worker token (added server-side by Vercel) is what gates access.
 @app.post("/process-routes/start")
 async def start_processing(
     json_data: str = Form(...),
-    file: UploadFile = File(...)
+    file: UploadFile = File(...),
+    user: User = Depends(get_current_user),
 ):
     try:
         payload = OptimizationRequest(**json.loads(json_data))
@@ -85,13 +84,15 @@ async def start_processing(
     _check_workbook(file_bytes)
 
     try:
-        task_id = job_queue.submit(lambda job_id: run_optimization(job_id, payload, file_bytes))
+        username = user.username
+        task_id = job_queue.submit(
+            lambda job_id: run_optimization(job_id, payload, file_bytes, username), owner=username)
     except QueueFull:
         raise HTTPException(
             status_code=429,
             detail=f"Server is at capacity ({MAX_PENDING_JOBS} jobs queued). Please try again later."
         )
-    logger.info(f"[API] Job {task_id} queued: {len(payload.employees)} employees, "
+    logger.info(f"[API] Job {task_id} queued by {username}: {len(payload.employees)} employees, "
                 f"{len(payload.vehicles)} vehicles, {len(file_bytes)} bytes")
 
     return {
@@ -102,8 +103,9 @@ async def start_processing(
 
 
 @app.get("/process-routes/status/{task_id}")
-def get_processing_status(task_id: str):
-    job = job_queue.get(task_id)
+def get_processing_status(task_id: str, user: User = Depends(get_current_user)):
+    # Another user's task looks exactly like an unknown one.
+    job = job_queue.get(task_id, owner=user.username)
     if job is None:
         raise HTTPException(status_code=404, detail="Unknown or expired task.")
 
@@ -115,15 +117,17 @@ def get_processing_status(task_id: str):
 
 
 # --- Optimization Run Logs ---
-@app.get("/optimization-logs", dependencies=[Depends(get_current_user)])
+@app.get("/optimization-logs")
 def get_optimization_logs(
     limit: int = Query(default=50, ge=1, le=1000),
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
 ):
-    """Return recent optimization run logs, newest first."""
+    """Return the caller's recent optimization runs, newest first."""
     rows = (
         db.query(OptimizationRunLog)
+        .filter(OptimizationRunLog.username == user.username)
         .order_by(OptimizationRunLog.created_at.desc())
         .offset(offset)
         .limit(limit)

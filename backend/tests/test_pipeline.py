@@ -54,7 +54,7 @@ def test_full_pipeline_returns_routes_with_geometry_and_logs_the_run(offline, wo
     init_db()
     request, file_bytes = _request(workbook_bytes)
 
-    result = pipeline.run_optimization("job-123", request, file_bytes)
+    result = pipeline.run_optimization("job-123", request, file_bytes, "alice")
 
     assert result["vehicles"]
     for vehicle in result["vehicles"]:
@@ -67,17 +67,18 @@ def test_full_pipeline_returns_routes_with_geometry_and_logs_the_run(offline, wo
         row = session.scalars(select(OptimizationRunLog).where(OptimizationRunLog.task_id == "job-123")).one()
         assert row.filename == "TestCase_TC03.xlsx"
         assert row.num_employees == 15 and row.winner_algorithm in {"LNS", "ALNS", "VROOM"}
+        assert row.username == "alice"
 
 
 def test_unreachable_osrm_fails_with_a_user_facing_message(offline, workbook_bytes):
     offline.fail_first = 10**6
     request, file_bytes = _request(workbook_bytes)
     with pytest.raises(JobError, match="routing service is unavailable"):
-        pipeline.run_optimization("job-osrm", request, file_bytes)
+        pipeline.run_optimization("job-osrm", request, file_bytes, "alice")
 
 
 def test_all_solvers_failing_is_a_job_error(offline, monkeypatch, workbook_bytes):
     monkeypatch.setattr(solver, "SOLVERS", {"BOOM": stubs.boom})
     request, file_bytes = _request(workbook_bytes)
     with pytest.raises(JobError, match="No route plan"):
-        pipeline.run_optimization("job-solvers", request, file_bytes)
+        pipeline.run_optimization("job-solvers", request, file_bytes, "alice")

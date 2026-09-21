@@ -33,6 +33,7 @@ def log_optimization_run(
     algo_duration_seconds: Optional[float] = None,
     total_duration_seconds: Optional[float] = None,
     task_id: Optional[str] = None,
+    username: Optional[str] = None,
     vehicles_in_solution: Optional[int] = None,
 ) -> None:
     """Insert a new optimization run log and enforce the row cap.
@@ -58,6 +59,7 @@ def log_optimization_run(
                 algo_duration_seconds=algo_duration_seconds,
                 total_duration_seconds=total_duration_seconds,
                 task_id=task_id,
+                username=username,
                 vehicles_in_solution=vehicles_in_solution,
             )
             session.add(row)

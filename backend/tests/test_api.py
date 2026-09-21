@@ -11,19 +11,33 @@ from fixtures import payload_from_workbook
 from jobs import JobError, JobQueue
 
 
+def _signed_in(c, username=None):
+    username = username or f"user-{uuid.uuid4().hex[:8]}"
+    resp = c.post("/auth/register", json={"username": username, "password": "correct horse battery"})
+    assert resp.status_code == 200, resp.text
+    c.headers["Authorization"] = f"Bearer {resp.json()['access_token']}"
+    return username
+
+
 @pytest.fixture
-def client(monkeypatch):
+def anon_client(monkeypatch):
     monkeypatch.setattr(main, "job_queue", JobQueue(max_pending=2, result_ttl_s=60))
     with TestClient(main.app) as c:
         yield c
 
 
 @pytest.fixture
+def client(anon_client):
+    anon_client.username = _signed_in(anon_client)
+    return anon_client
+
+
+@pytest.fixture
 def fake_pipeline(monkeypatch):
     calls = []
 
-    def run(job_id, payload, file_bytes):
-        calls.append((job_id, payload, file_bytes))
+    def run(job_id, payload, file_bytes, username):
+        calls.append((job_id, payload, file_bytes, username))
         return {"vehicles": [{"vehicle_id": payload.vehicles[0].vehicle_id}], "summary": {}}
 
     monkeypatch.setattr(main, "run_optimization", run)
@@ -56,7 +70,8 @@ def test_start_then_poll_until_completed(client, fake_pipeline, workbook_bytes):
     assert uuid.UUID(body["task_id"]).version == 4
 
     done = _poll(client, body["task_id"])
-    job_id, payload, file_bytes = fake_pipeline[0]
+    job_id, payload, file_bytes, username = fake_pipeline[0]
+    assert username == client.username
     assert done == {"status": "completed",
                     "result": {"vehicles": [{"vehicle_id": payload.vehicles[0].vehicle_id}], "summary": {}}}
     assert job_id == body["task_id"]
@@ -192,3 +207,56 @@ def test_secret_key_is_required():
     out = import_in_subprocess("main", drop=("SECRET_KEY",))
     assert out.returncode != 0
     assert "Missing required environment variables: SECRET_KEY" in out.stderr
+
+
+# --- access control --------------------------------------------------------------
+
+@pytest.mark.parametrize("method,path", [
+    ("post", "/process-routes/start"),
+    ("get", f"/process-routes/status/{uuid.uuid4()}"),
+    ("get", "/optimization-logs"),
+])
+def test_optimization_endpoints_require_login(anon_client, fake_pipeline, workbook_bytes, method, path):
+    kwargs = {}
+    if method == "post":
+        data, files = _form(workbook_bytes)
+        kwargs = {"data": data, "files": files}
+    resp = getattr(anon_client, method)(path, **kwargs)
+    assert resp.status_code == 401
+    assert resp.headers["WWW-Authenticate"] == "Bearer"
+    assert not fake_pipeline
+
+
+def test_bad_token_is_rejected_before_any_work(anon_client, fake_pipeline, workbook_bytes):
+    anon_client.headers["Authorization"] = "Bearer not-a-real-token"
+    data, files = _form(workbook_bytes)
+    assert anon_client.post("/process-routes/start", data=data, files=files).status_code == 401
+    assert not fake_pipeline
+
+
+def test_users_cannot_see_each_others_tasks(anon_client, fake_pipeline, workbook_bytes):
+    _signed_in(anon_client, f"alice-{uuid.uuid4().hex[:6]}")
+    data, files = _form(workbook_bytes)
+    task_id = anon_client.post("/process-routes/start", data=data, files=files).json()["task_id"]
+    assert _poll(anon_client, task_id)["status"] == "completed"
+
+    _signed_in(anon_client, f"bob-{uuid.uuid4().hex[:6]}")
+    resp = anon_client.get(f"/process-routes/status/{task_id}")
+    assert resp.status_code == 404
+    assert resp.json() == {"detail": "Unknown or expired task."}
+
+
+def test_optimization_logs_only_show_the_callers_runs(anon_client):
+    from optimization_logger import log_optimization_run
+
+    def log(username, filename):
+        log_optimization_run(filename=filename, num_employees=1, num_vehicles=1, winner_algorithm="VROOM",
+                             employees_served=1, hard_violations=0, soft_violations=0, objective_score=1.0,
+                             total_cost=1.0, total_time_min=1.0, task_id=f"t-{filename}", username=username)
+
+    alice = _signed_in(anon_client, f"alice-{uuid.uuid4().hex[:6]}")
+    log(alice, "alice.xlsx")
+    log("someone-else", "other.xlsx")
+    rows = anon_client.get("/optimization-logs").json()
+    assert [r["filename"] for r in rows] == ["alice.xlsx"]
+    assert rows[0]["task_id"] == "t-alice.xlsx"

@@ -15,9 +15,9 @@ from router import MatrixService
 logger = logging.getLogger(__name__)
 
 
-def run_optimization(job_id: str, payload: OptimizationRequest, file_bytes: bytes) -> dict:
+def run_optimization(job_id: str, payload: OptimizationRequest, file_bytes: bytes, username: str) -> dict:
     task_start = time.time()
-    logger.info(f"=== JOB {job_id} STARTED: {len(payload.employees)} employees, {len(payload.vehicles)} vehicles ===")
+    logger.info(f"=== JOB {job_id} STARTED by {username}: {len(payload.employees)} employees, {len(payload.vehicles)} vehicles ===")
 
     logger.info("[Step 1/4] Fetching OSRM distance matrix...")
     step_start = time.time()
@@ -65,6 +65,7 @@ def run_optimization(job_id: str, payload: OptimizationRequest, file_bytes: byte
         algo_duration_seconds=round(algo_elapsed, 2),
         total_duration_seconds=round(total_time, 2),
         task_id=job_id,
+        username=username,
         vehicles_in_solution=vehicles_count,
     )
 

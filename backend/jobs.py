@@ -29,6 +29,7 @@ class QueueFull(Exception):
 @dataclass
 class Job:
     id: str
+    owner: str
     status: str = "queued"  # queued | running | completed | failed
     result: Optional[dict] = None
     error: Optional[str] = None
@@ -49,21 +50,23 @@ class JobQueue:
             self._thread = threading.Thread(target=self._work, name="job-worker", daemon=True)
             self._thread.start()
 
-    def submit(self, work: Callable[[str], dict]) -> str:
-        """Queue work(job_id) -> result. Raises QueueFull when max_pending jobs are queued or running."""
+    def submit(self, work: Callable[[str], dict], owner: str) -> str:
+        """Queue work(job_id) -> result for owner. Raises QueueFull when max_pending jobs are queued or running."""
         with self._lock:
             self._expire_locked()
             if self._active_locked() >= self._max_pending:
                 raise QueueFull
-            job = Job(id=str(uuid.uuid4()))
+            job = Job(id=str(uuid.uuid4()), owner=owner)
             self._jobs[job.id] = job
         self._queue.put((job.id, work))
         return job.id
 
-    def get(self, job_id: str) -> Optional[Job]:
+    def get(self, job_id: str, owner: str) -> Optional[Job]:
+        """The job, or None if it doesn't exist, expired, or belongs to someone else."""
         with self._lock:
             self._expire_locked()
-            return self._jobs.get(job_id)
+            job = self._jobs.get(job_id)
+            return job if job is not None and job.owner == owner else None
 
     def depth(self) -> int:
         with self._lock:
