@@ -2,6 +2,12 @@
 
 Sources compared: `README.md`, `backend/README.md`, `backend/algo/algo_README.md`, `frontend/README.md`, `Vellora_Report.pdf`.
 
+**Update after the backend refactor:** `backend/README.md` and `algo/algo_README.md` were rewritten to
+match the new code. That resolves these rows: soft-violation penalty, ALNS timeout, step 4 duration, Docker
+Compose, Postgres version, env file, project folder, tables auto-created, VROOM setup, VROOM isolation,
+concurrency and `check_lns.py`. The remaining rows (mostly `Vellora_Report.pdf`, the objective weights and the
+mobile auth flow) still stand.
+
 | Topic | Documentation says | Code actually does |
 |---|---|---|
 | Solvers in the tournament | Report §2.2, §3.3: LNS + ALNS | LNS + ALNS + VROOM (`backend/algo/solver.py:65-70`) |

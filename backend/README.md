@@ -1,349 +1,184 @@
 # Route Optimization Engine — Backend
 
-A production-grade Vehicle Routing Problem (VRP) optimization backend built with **FastAPI**, **Celery**, and **Redis**. The system accepts employee/vehicle data, fetches real-time road network distances from an **OSRM** server, runs three competing optimization algorithms in parallel (LNS, ALNS, VROOM), scores them against a unified feasibility checker, and returns the best solution with encoded road geometries for map rendering.
+A Vehicle Routing Problem (VRP) backend built with **FastAPI**. It accepts employee/vehicle data, fetches road distances from an **OSRM** server, runs three competing solvers (LNS, ALNS, VROOM), scores them with one feasibility checker, and returns the best plan with encoded road geometries for the map.
 
-For detailed documentation on the solver algorithms themselves, see [`algo/README.md`](algo/README.md).
-
----
-
-## Architecture Overview
-
-```
-┌──────────────┐       ┌──────────────┐       ┌──────────────┐
-│   Client /   │ POST  │   FastAPI    │ queue  │    Celery    │
-│   Frontend   │──────▶│   (main.py)  │───────▶│    Worker    │
-│              │◀──────│   :8080      │◀───────│  (worker.py) │
-│              │ poll   │              │ result  │              │
-└──────────────┘       └──────┬───────┘       └──────┬───────┘
-                              │                       │
-                    ┌─────────▼─────────┐    ┌───────▼────────┐
-                    │   PostgreSQL      │    │   Redis        │
-                    │   (run logs,      │    │   (broker +    │
-                    │    auth users)    │    │    result      │
-                    └───────────────────┘    │    backend)    │
-                                             └───────┬────────┘
-                                                     │
-                                            ┌────────▼────────┐
-                                            │   OSRM Server   │
-                                            │   (GCP VM)      │
-                                            │   :5000         │
-                                            └─────────────────┘
-```
-
-### Request Lifecycle
-
-1. **Client** sends a `POST /process-routes/start` with a JSON payload (employees + vehicles) and an Excel file.
-2. **FastAPI** validates the payload via Pydantic, saves the Excel file temporarily, base64-encodes it, and dispatches a Celery task. A concurrency gate rejects requests with HTTP 429 if the worker is at capacity.
-3. **Celery Worker** picks up the task from Redis and executes a 5-step pipeline:
-   - **Step 1** — Reconstruct the Pydantic payload from the serialized dict.
-   - **Step 2** — Fetch an N×N distance/duration matrix from OSRM (`/table/v1/driving/`).
-   - **Step 3** — Transform the matrix into a flat edge list consumed by the solvers.
-   - **Step 4** — Run the VRP solver (`algo/solver.py`), which launches **LNS**, **ALNS**, and **VROOM** concurrently in a thread pool, scores all solutions via `feasibilityfinal.py`, and selects the winner. This is the compute-heavy step and can take **up to ~15 minutes**.
-   - **Step 5** — Fetch route geometries from OSRM (`/route/v1/driving/`) for map rendering, with throttled concurrent requests (50 max).
-4. **Client** polls `GET /process-routes/status/{task_id}` until the result is ready.
-5. On success, the result is logged to **PostgreSQL** for historical tracking.
+Everything runs in one container: the API, an in-process job queue, and the solver processes. Postgres stores run logs and users. For the solver algorithms, see [`algo/algo_README.md`](algo/algo_README.md). For how it is deployed, see [`docs/deployment.md`](../docs/deployment.md).
 
 ---
 
-## Project Structure
+## Architecture
 
 ```
-h3-backend/
-├── main.py                  # FastAPI application & endpoints
-├── worker.py                # Celery worker, task definition, beat schedule
-├── models.py                # Pydantic request/response models
-├── router.py                # OSRM client — MatrixService & RouteService
-├── logic.py                 # Edge list generation from distance matrix
-├── geometry_processor.py    # Geometry enrichment (polyline encoding)
-├── database.py              # SQLAlchemy engine, session, Base
-├── db_models.py             # ORM model for optimization_run_logs
-├── optimization_logger.py   # Safe DB logger with row-cap enforcement
-├── auth.py                  # JWT authentication (register/login)
-├── run_solver.py            # Standalone CLI to run the solver offline
-├── debug_alns.py            # Diagnostic script for ALNS debugging
-├── vroom_test.py            # Integration test for VROOM solver path
-├── test_vroom_matrix.py     # Low-level pyvroom matrix format test
-├── setup_vroom_env.bat      # Windows script to create isolated VROOM venv
-├── algo/                    # Solver algorithms — see algo/README.md
-│   ├── __init__.py
-│   ├── solver.py
-│   ├── lns_algo.py
-│   ├── lns_local_search.py
-│   ├── lns_simulator.py
-│   ├── lns_utils.py
-│   ├── alns.py
-│   ├── feasibilityfinal.py
-│   ├── vroom_solver.py
-│   ├── vroom_bridge.py
-│   ├── vroom_matrix_patch.py
-│   ├── check_lns.py
-│   └── templts/
-├── requirements.txt
+Vercel API route ──▶ Cloudflare Worker ──▶ velora-backend container (:8080)
+                                             ├── FastAPI (main.py)
+                                             ├── job worker thread (jobs.py → pipeline.py)
+                                             │     └── solver processes: LNS | ALNS | VROOM
+                                             ├──▶ OSRM   (/table, /route)
+                                             └──▶ Postgres (run logs, users)
+```
+
+### Request lifecycle
+
+1. `POST /process-routes/start` receives `json_data` (employees + vehicles) and the `.xlsx` file. The API validates the payload and checks that the workbook has the `employees`, `vehicles` and `metadata` sheets. It then queues a job and returns its `task_id` (a UUID).
+2. One worker thread runs jobs one at a time (`pipeline.run_optimization`):
+   1. Fetch the distance/duration matrix from OSRM in retried blocks (`router.MatrixService`).
+   2. Turn it into an edge list with explicit `from`/`to` endpoints (`logic.generate_routes`).
+   3. Run LNS, ALNS and VROOM, each in its own process with a hard time limit. Score each result and keep the best (`algo/solver.py`).
+   4. Fetch road geometry for every route segment (`geometry_processor.py`).
+   5. Write a row to `optimization_run_logs`.
+3. The client polls `GET /process-routes/status/{task_id}` until the job is `completed` or `failed`.
+
+Job state lives in memory. Results stay pollable for `JOB_RESULT_TTL_S`. After a restart, earlier task IDs return 404, and the frontend then shows the job as failed.
+
+---
+
+## Project structure
+
+```
+backend/
+├── main.py                  # FastAPI app and endpoints
+├── config.py                # Environment configuration (fails fast on missing required values)
+├── jobs.py                  # In-process job queue (one worker thread, TTL'd results)
+├── pipeline.py              # The optimization job: matrix → edges → solvers → geometry → log
+├── models.py                # Pydantic request models and validation
+├── router.py                # OSRM client: MatrixService (blocked /table) and RouteService (/route)
+├── logic.py                 # Edge list generation from the matrix
+├── geometry_processor.py    # Route geometry enrichment (polyline encoding)
+├── database.py              # SQLAlchemy engine, session, init_db()
+├── db_models.py             # User and OptimizationRunLog models
+├── optimization_logger.py   # Run logger with a 1,000-row cap
+├── auth.py                  # JWT register/login (bcrypt)
+├── algo/                    # Solvers — see algo/algo_README.md
+├── scripts/
+│   ├── run_solver.py        # Run the solver tournament on a workbook, no API/OSRM needed
+│   ├── fixtures.py          # Workbook → API payload + haversine edge list (used by tests too)
+│   └── data_converter.py    # Dump a workbook to JSON
+├── tests/                   # pytest suite
+├── requirements.txt         # Runtime dependencies (pyvroom pins numpy<2)
+├── requirements-dev.txt     # + pytest
 ├── Dockerfile
-├── docker-compose.yml
-└── _env.example
+└── docker-compose.yml       # Local db + api
 ```
 
 ---
 
-## Prerequisites
+## Configuration
 
-- **Python 3.9+** (3.10+ recommended; 3.12 works for everything except pyvroom)
-- **Redis** (message broker + Celery result backend)
-- **PostgreSQL 16** (optimization run logs + user auth)
-- **OSRM server** deployed and accessible (default: `http://34.131.59.11:5000`)
-- **Isolated Python venv** for pyvroom with `numpy < 2` (see [VROOM Setup](#vroom-setup))
+Copy `.env.example` to `.env`. The service refuses to start without the required values.
+
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `DATABASE_URL` | yes | — | Postgres URL, e.g. `postgresql+psycopg2://user:pass@host:5432/velora` |
+| `OSRM_URL` | yes | — | Base URL of `osrm-routed`, e.g. `http://osrm:5000` |
+| `SECRET_KEY` | yes | — | JWT signing key |
+| `SOLVER_MAX_WORKERS` | no | `1` | Solver processes running at once (1 on the 2-OCPU VM, so OSRM keeps a core) |
+| `SOLVER_TIME_LIMIT_S` | no | `40` | Each solver's search budget |
+| `SOLVER_GRACE_S` | no | `30` | Extra time before a solver that is still running is killed |
+| `MAX_PENDING_JOBS` | no | `5` | Queued + running jobs before `/process-routes/start` returns 429 |
+| `JOB_RESULT_TTL_S` | no | `3600` | How long a finished job stays pollable |
+| `MAX_UPLOAD_BYTES` | no | `4194304` | Largest accepted workbook (413 above this) |
+| `OSRM_TABLE_BLOCK` | no | `100` | Sources/destinations per OSRM `/table` request |
+
+A job takes at most about `ceil(3 / SOLVER_MAX_WORKERS) × (SOLVER_TIME_LIMIT_S + SOLVER_GRACE_S)` in the solver step, plus the OSRM calls. With the defaults that's about 3.5 minutes in the worst case. Small inputs finish in seconds.
+
+If Postgres is unreachable at startup, the API still starts and optimization still works. Run logging and auth fail until the database is back. Tables are created on startup by `database.init_db()`.
 
 ---
 
-## Quick Start
+## Running locally
 
-### 1. Clone and Install Dependencies
+**With Docker (recommended).** The image uses Python 3.10, where pyvroom 1.14 and numpy < 2 install cleanly:
 
 ```bash
-cd h3-backend
+cp .env.example .env         # set OSRM_URL and SECRET_KEY
+docker compose up --build    # db + api on http://localhost:8080
+```
+
+**Without Docker** (Python 3.10):
+
+```bash
 pip install -r requirements.txt
-```
-
-### 2. Set Up Environment Variables
-
-Copy the example env file and fill in your values:
-
-```bash
-cp _env.example .env
-```
-
-| Variable           | Description                                       | Default                                                    |
-|--------------------|---------------------------------------------------|------------------------------------------------------------|
-| `REDIS_URL`        | Redis connection string                           | `redis://localhost:6379/0`                                 |
-| `OSRM_URL`         | Base URL of the OSRM server                       | `http://34.131.59.11:5000`                                 |
-| `SECRET_KEY`       | JWT signing key for authentication                | *(required)*                                               |
-| `DATABASE_URL`     | PostgreSQL connection string                      | `postgresql+psycopg2://kriti:kriti_pwd@localhost:5432/routeopti` |
-| `VROOM_PYTHON_EXE` | Path to the isolated VROOM Python interpreter     | Auto-detected from `vroom_env/`                            |
-
-### 3. Start Infrastructure (Redis + PostgreSQL)
-
-**Redis:**
-
-```bash
-docker run -d --name redis-dev -p 6379:6379 redis:latest
-```
-
-**PostgreSQL:**
-
-```bash
-docker run -d \
-  --name routeopti-postgres \
-  -e POSTGRES_USER=kriti \
-  -e POSTGRES_PASSWORD=kriti_pwd \
-  -e POSTGRES_DB=routeopti \
-  -p 5432:5432 \
-  -v pgdata:/var/lib/postgresql/data \
-  --restart unless-stopped \
-  postgres:16
-```
-
-Database tables (`users`, `optimization_run_logs`) are created automatically on first startup via `Base.metadata.create_all()`.
-
-### 4. Start the Celery Worker
-
-**Windows:**
-
-```bash
-celery -A worker.celery_app worker --loglevel=info --pool=solo --concurrency=4
-```
-
-**Linux:**
-
-```bash
-celery -A worker.celery_app worker --loglevel=info --pool=prefork --concurrency=2
-```
-
-> **Important:** When using `--concurrency=2` on Linux, set `MAX_CONCURRENT_JOBS = 2` in `main.py` to match, so the API gate check correctly rejects requests when the worker is at capacity.
-
-### 5. Start the FastAPI Server
-
-```bash
+export DATABASE_URL=... OSRM_URL=... SECRET_KEY=...
 uvicorn main:app --reload --port 8080
 ```
 
-The API is now live at `http://localhost:8080`. Interactive docs at `http://localhost:8080/docs`.
+Interactive API docs: `http://localhost:8080/docs`.
 
 ---
 
-## Docker Compose (Full Stack)
+## API
 
-To run the API and worker as containers with Redis:
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| POST | `/process-routes/start` | — ¹ | Queue an optimization job |
+| GET | `/process-routes/status/{task_id}` | — ¹ | Poll a job |
+| GET | `/optimization-logs` | JWT | Run history, newest first (`limit` ≤ 1000, `offset`) |
+| POST | `/register` | — | Create a user (password 8–72 bytes), returns a JWT |
+| POST | `/login` | — | OAuth2 password form, returns a JWT |
+| GET | `/health` | — | `{"status": "ok", "queue_depth": n}` |
+
+¹ Until the frontend has a login flow, the Cloudflare Worker token (added server-side by the Vercel API routes) gates these routes. The Worker only forwards `/process-routes`.
+
+**`POST /process-routes/start`** takes a multipart form:
+
+- `json_data`: a JSON object matching `OptimizationRequest` (employees, vehicles, optional metadata/baseline). Employee and vehicle IDs must be non-empty and unique across both lists, and must not be `office`. Numeric IDs are accepted. All employees must share one drop-off (office) location, within about 11 m. Times accept `HH:MM` or `HH:MM:SS`.
+- `file`: the source `.xlsx` with `employees`, `vehicles` and `metadata` sheets, up to 4 MB.
+
+| Response | When |
+|---|---|
+| `200 {"status": "queued", "task_id": "<uuid4>", ...}` | Job queued |
+| `400` | `json_data` isn't valid JSON |
+| `413` | File larger than `MAX_UPLOAD_BYTES` |
+| `422` | Payload fails validation (`detail` is a list of `{loc, msg}`), or the file isn't a workbook with the required sheets |
+| `429` | `MAX_PENDING_JOBS` already queued or running |
+
+**`GET /process-routes/status/{task_id}`**:
+
+| Response | Meaning |
+|---|---|
+| `{"status": "processing"}` | Queued or running |
+| `{"status": "completed", "result": {...}}` | Per-vehicle routes, timings, costs and `route_geometry` polylines. `summary.solvers` gives each solver's status (`ok`, `failed` or `timed out`) |
+| `{"status": "failed", "error": "..."}` | A user-facing message. Internal errors are only logged |
+| `404` | Unknown or expired task |
+
+---
+
+## Solvers and time limits
+
+`algo/solver.py` starts each solver in a separate `spawn` process:
+
+- At most `SOLVER_MAX_WORKERS` run at once.
+- Each solver gets `SOLVER_TIME_LIMIT_S` as its search budget. LNS stops iterating at the deadline, and ALNS uses it as its time limit.
+- A solver still running at limit + grace is terminated, and the job continues with whatever the other solvers produced.
+- If every solver fails, the job fails with "No route plan could be produced for this input."
+
+Ranking: zero hard violations first, then most employees served, then lowest `objective + 50 × soft_violations`.
+
+VROOM runs in-process through pyvroom. `requirements.txt` pins `numpy<2`, which pyvroom 1.14's wheels need. `vroom_matrix_patch.py` works around a buffer-format quirk in the Windows wheel and does nothing on Linux.
+
+---
+
+## OSRM
+
+- **Matrix:** requested in `OSRM_TABLE_BLOCK × OSRM_TABLE_BLOCK` source/destination blocks. That stays within OSRM's default `--max-table-size` of 100 and keeps URLs bounded, and a failure only retries one block. Each block is tried 3 times with backoff on 5xx, 429 and connection errors. Pairs OSRM can't route are dropped, and the solvers fall back to haversine for them.
+- **Geometry:** one `/route` call per unique segment, at most 50 at a time, 3 attempts each. A failed segment gets an empty geometry instead of failing the job.
+
+---
+
+## Tests
+
+The suite needs pyvroom, so run it in the image:
 
 ```bash
-docker-compose up --build
+docker build -t velora-backend .
+docker run --rm -v "$PWD:/app" -w /app velora-backend \
+  sh -c "pip install -q -r requirements-dev.txt && python -m pytest -q -p no:cacheprovider"
 ```
 
-This starts three services: `redis`, `api` (port 8080), and `worker`. PostgreSQL and OSRM are expected to be running externally.
+It covers config validation, table creation and the run-log cap, the API (lifecycle, validation, limits, auth, no CORS), the job queue, OSRM blocking and retries against a fake OSRM, underscore IDs through every solver, the process runner (hangs, crashes, the concurrency limit), and all three real solvers on every workbook in `algo/templts`. The real-solver tests take a couple of minutes. Add `-k "not every_template"` for a quick run.
 
----
-
-## API Endpoints
-
-### Route Optimization
-
-| Method | Path                              | Description                              |
-|--------|-----------------------------------|------------------------------------------|
-| POST   | `/process-routes/start`           | Submit an optimization job               |
-| GET    | `/process-routes/status/{task_id}`| Poll job status (processing/completed/failed) |
-
-**POST `/process-routes/start`** expects a multipart form with two fields:
-
-- `json_data` (string) — JSON string matching the `OptimizationRequest` schema (employees, vehicles, optional metadata/baseline).
-- `file` (binary) — The source Excel file (`.xlsx`) with three sheets: `employees`, `vehicles`, `metadata`.
-
-The `metadata` sheet provides priority delay limits (`priority_N_max_delay_min`), objective weights (`objective_cost_weight`, `objective_time_weight`), and other configuration. Time fields (`earliest_pickup`, `latest_drop`, `available_from`) accept `HH:MM` or `HH:MM:SS` format — seconds are automatically trimmed by Pydantic validators.
-
-**Response:**
-
-```json
-{
-  "status": "queued",
-  "task_id": "abc123-...",
-  "message": "Optimization task started in the background."
-}
-```
-
-**GET `/process-routes/status/{task_id}`** returns:
-
-| State       | Response                                           |
-|-------------|-----------------------------------------------------|
-| Processing  | `{"status": "processing"}`                          |
-| Completed   | `{"status": "completed", "result": { ... }}`        |
-| Failed      | `{"status": "failed", "error": "..."}`              |
-
-The completed `result` contains per-vehicle route assignments with step-by-step sequence, timing, cost, and polyline-encoded geometries for map rendering.
-
-### Optimization Logs
-
-| Method | Path                 | Description                                     |
-|--------|----------------------|-------------------------------------------------|
-| GET    | `/optimization-logs` | Paginated history of successful runs (newest first) |
-
-Query params: `limit` (default 50, max 1000), `offset` (default 0). Returns algorithm winner, objective score, served count, violation counts, and timing.
-
-### Authentication
-
-| Method | Path        | Description                            |
-|--------|-------------|----------------------------------------|
-| POST   | `/register` | Create a new user, returns JWT token   |
-| POST   | `/login`    | Authenticate, returns JWT token        |
-
-> Auth is currently **disabled** on optimization endpoints (commented out) during the testing phase.
-
-### Health
-
-| Method | Path      | Description                  |
-|--------|-----------|------------------------------|
-| GET    | `/health` | Pings Redis via Celery       |
-
----
-
-## Server Components
-
-### Pydantic Models (`models.py`)
-
-The `OptimizationRequest` model validates incoming data with automatic time format normalization — any `HH:MM:SS` values are trimmed to `HH:MM` via field validators to prevent downstream solver crashes. Key sub-models: `Employee` (pickup/drop coordinates, priority 1–5, time windows, vehicle/sharing preferences), `Vehicle` (location, fuel/vehicle type, capacity, cost per km, average speed, availability, category), plus optional `Metadata` and `Baseline`.
-
-### OSRM Integration (`router.py`)
-
-- **`MatrixService`** — builds a coordinate index from all employees, vehicles, and the office location, then fetches an N×N duration/distance matrix in a single OSRM `/table` API call (30s timeout).
-- **`RouteService`** — fetches individual route geometries with semaphore-limited concurrency (default 50), connection pooling (20 keepalive), and automatic retries with 1-second backoff on server errors or network failures (3 attempts).
-
-### Edge List Generation (`logic.py`)
-
-Transforms the N×N matrix into a flat list of directional edges covering all required pairs: employee↔employee (permutations), vehicle→employee, employee→office, office→employee, vehicle→office, and office→vehicle. Each edge carries distance (meters) and duration (seconds). The edge IDs use the `"{from}_{to}"` format that all solvers rely on for distance lookups.
-
-### Geometry Enrichment (`geometry_processor.py`)
-
-After the solver produces route assignments, this module:
-1. Parses unique route segment tags from the `routes` field of each vehicle.
-2. Fetches road geometry for each segment from OSRM `/route/v1/driving/` with throttled concurrency.
-3. Injects exact source/destination coordinates at the start and end of each polyline to eliminate visual snapping gaps between route lines and map markers.
-4. Encodes paths as polylines (via the `polyline` library) and replaces the `routes` field with `route_geometry` containing `{segment_id, geometry}` pairs.
-
-### Optimization Logger (`optimization_logger.py`)
-
-Logs each successful run to PostgreSQL with full traceability: algorithm winner, objective score, costs, timing, served count, violation counts, vehicle count, and Celery task ID. The table is capped at **1,000 rows** — oldest entries are pruned after each insert. All DB operations are wrapped in try/except so a logging failure never crashes the pipeline.
-
-### Celery Worker (`worker.py`)
-
-- Runs the 5-step optimization pipeline as a background task.
-- Bridges async OSRM calls into the sync Celery context via `asyncio.new_event_loop()`.
-- Includes a **Celery Beat** scheduled task (`cleanup_orphaned_files`) that purges temporary upload files older than 24 hours, running every 12 hours.
-- All logs are written to both `worker_debug.log` and stdout.
-- Each task is bookended with `=== TASK STARTED ===` and `=== TASK COMPLETED ===` markers including the Celery task ID and total elapsed time.
-
-### Concurrency Control
-
-The API enforces a server-side job limit (`MAX_CONCURRENT_JOBS`) by inspecting Celery's active + reserved task queues via the Celery inspector. Requests exceeding capacity receive HTTP `429 Too Many Requests`.
-
-### Database (`database.py`, `db_models.py`)
-
-SQLAlchemy with PostgreSQL via psycopg2. The `OptimizationRunLog` model stores input metadata (filename, employee/vehicle counts), result metadata (winner algorithm, served count, violations, objective score, costs), timing (algo duration, total pipeline duration), and traceability (Celery task ID, vehicle count). Tables are auto-created on startup.
-
-### Authentication (`auth.py`)
-
-JWT-based auth with bcrypt password hashing via passlib. Tokens expire after 30 minutes (configurable). The `User` model stores username and hashed password. Currently disabled on optimization endpoints during testing — the `Depends(get_current_user)` guards are commented out.
-
----
-
-## VROOM Setup
-
-The VROOM solver requires an **isolated virtual environment** with `numpy < 2` due to pyvroom's ABI incompatibility with numpy 2.x. See [`algo/README.md`](algo/README.md) for the full technical explanation.
-
-**Windows:**
+To try the solvers on a workbook without the API or OSRM:
 
 ```bash
-.\setup_vroom_env.bat
+python scripts/run_solver.py --excel algo/templts/TestCase_TC03.xlsx --time-limit 10 --workers 3
 ```
-
-**Manual / Linux:**
-
-```bash
-python3.10 -m venv vroom_env
-vroom_env/bin/pip install "numpy<2" pyvroom pandas openpyxl
-```
-
-The solver bridge auto-detects `vroom_env/` relative to the project root. Override with the `VROOM_PYTHON_EXE` environment variable if the venv is elsewhere.
-
----
-
-## Standalone Solver CLI
-
-Run the solver outside of the web stack for testing and debugging:
-
-```bash
-python run_solver.py --excel path/to/input.xlsx \
-                     --matrix algo/templts/matrix_edge_list.json \
-                     --payload algo/templts/payload_dict.json \
-                     --output solver_output.json
-```
-
----
-
-## Debugging & Testing
-
-- **`debug_alns.py`** — Step-by-step diagnostic for the ALNS solver. Traces a single insertion (V01 picks up E01), validates routes, and runs a short 5-second ALNS pass to check served vs. unassigned counts.
-- **`vroom_test.py`** — Integration test for the VROOM solver path. Prints full environment diagnostics (Python version, numpy version in both main and isolated venvs, interpreter resolution), then runs `solve_vroom()` on a sample spreadsheet.
-- **`test_vroom_matrix.py`** — Low-level probe that tests every `array` format code to determine which ones `_vroom.Matrix` accepts on the current platform.
-- **`worker_debug.log`** — Shared log file written by both FastAPI and the Celery worker with timestamped step-by-step progress.
-
----
-
-## Configuration Reference
-
-| Setting                       | Location                  | Default | Description                                     |
-|-------------------------------|---------------------------|---------|-------------------------------------------------|
-| `MAX_CONCURRENT_JOBS`         | `main.py`                 | 4       | Max parallel Celery tasks before 429 rejection  |
-| `MAX_LOG_ROWS`                | `optimization_logger.py`  | 1000    | Row cap for the optimization logs table         |
-| `ACCESS_TOKEN_EXPIRE_MINUTES` | `auth.py`                 | 30      | JWT token lifetime                              |
-| OSRM geometry concurrency     | `router.py`               | 50      | Max parallel geometry fetch requests            |
-| Celery Beat interval          | `worker.py`               | 12h     | Orphaned file cleanup frequency                 |
-
-For solver-specific configuration (LNS iterations, ALNS time limits, VROOM parameters), see [`algo/README.md`](algo/README.md).

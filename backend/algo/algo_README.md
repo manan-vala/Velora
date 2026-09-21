@@ -1,6 +1,6 @@
 # Optimization Engine — Solver Algorithms
 
-This directory contains the core optimization algorithms for the Vehicle Routing Problem (VRP). Three solvers run concurrently, and a unified feasibility scorer picks the best result.
+This directory contains the core optimization algorithms for the Vehicle Routing Problem (VRP). Three solvers run as separate processes under a time limit, and one feasibility scorer picks the best result.
 
 ---
 
@@ -9,37 +9,38 @@ This directory contains the core optimization algorithms for the Vehicle Routing
 ```
 algo/
 ├── __init__.py              # Exports solve_vrp()
-├── solver.py                # Orchestrator — runs all 3 solvers in parallel, picks best
+├── solver.py                # Orchestrator — runs the 3 solvers in time-limited processes, picks best
 │
 ├── lns_algo.py              # LNS: Large Neighborhood Search optimizer
 ├── lns_local_search.py      # LNS: Local search operators (Relocate, Swap, 2-Opt, etc.)
 ├── lns_simulator.py         # LNS: Route simulation engine (cost, time, violations)
 ├── lns_utils.py             # Shared data structures, distance matrix, helpers
 │
-├── alns.py                 # ALNS: Enhanced Adaptive Large Neighborhood Search
+├── alns.py                  # ALNS: Enhanced Adaptive Large Neighborhood Search
 │
-├── vroom_solver.py          # VROOM: Subprocess launcher (isolated venv bridge)
-├── vroom_bridge.py          # VROOM: Standalone solver (runs inside isolated venv)
+├── vroom_solver.py          # VROOM: pyvroom model building, solve and output formatting
 ├── vroom_matrix_patch.py    # VROOM: Windows MSVC pyvroom ABI fix
 │
 ├── feasibilityfinal.py      # Unified feasibility scorer for solution comparison
-├── check_lns.py             # LNS output validation against reference checker
-└── templts/                 # Template/test input files (Excel, JSON)
+└── templts/                 # Test workbooks
 ```
 
 ---
 
 ## Three-Solver Tournament (`solver.py`)
 
-The orchestrator runs **LNS**, **ALNS**, and **VROOM** concurrently using a `ThreadPoolExecutor(max_workers=3)`. Each solver receives the same input — a payload dict, an OSRM-derived edge list, and raw Excel bytes — and produces a solution in a standardized output format containing per-vehicle route sequences with timing, cost, and route link tags.
+The orchestrator runs **LNS**, **ALNS** and **VROOM**, each in its own `multiprocessing` "spawn" process. Each solver receives the same input (a payload dict, an OSRM-derived edge list, and the raw Excel bytes) and produces a solution in a standardized output format: per-vehicle route sequences with timing, cost and route link tags.
 
-If any solver fails (exception or timeout), the remaining solutions are still evaluated. The ALNS solver has a **150-second hard timeout** in the thread pool; if it exceeds this but has published a partial result via its `result_ref` mechanism, that partial result is used instead of discarding the run.
+- At most `SOLVER_MAX_WORKERS` (default 1) solver processes run at once.
+- Each solver gets `SOLVER_TIME_LIMIT_S` (default 40 s) as its search budget. LNS stops iterating at the deadline, and ALNS uses it as its wall-clock limit.
+- A solver still running at limit + `SOLVER_GRACE_S` (default 30 s) is terminated. The grace covers start-up and formatting, and ALNS finishing an in-flight iteration, which can overshoot by ~20 s on the 96-employee workbooks.
+- A solver that raises, crashes or times out is logged and reported in `summary.solvers` (`ok` / `failed` / `timed out`). The remaining solutions are still evaluated. If none succeed, `SolverError` is raised.
 
 All surviving solutions are scored by `feasibilityfinal.py`. The **selection logic** is:
 
 1. **Filter** to solutions with zero hard constraint violations.
 2. Among valid solutions, **maximize** employees served (strictly).
-3. Among ties, **minimize** effective objective = `objective + (soft_violations × 100)`.
+3. Among ties, **minimize** effective objective = `objective + (soft_violations × 50)`.
 4. If no valid solutions exist, pick the one with the fewest hard violations, then most served, then lowest effective objective.
 
 
@@ -155,23 +156,19 @@ A more sophisticated variant of LNS with **adaptive operator selection**. Rather
 
 Regret-based insertion with configurable noise. The noise level starts at 10% of the insertion cost and decays linearly to 0 over the optimization run. This balances diversification (noisy early insertions explore more of the solution space) with intensification (clean late insertions converge to the best-known region).
 
-### Timeout Recovery
-
-The solver publishes its best-so-far formatted solution to a shared `result_ref[0]` after every improvement. The `_write_result` call is wrapped in try/except so it never crashes the solve loop. If `solver.py`'s 150-second hard timeout fires, the last published result is used rather than discarding the run entirely.
-
 ### Early Termination
 
 The solver stops early if any of these conditions are met:
 - **300 iterations** without a global-best improvement.
 - **Acceptance rate** drops below 2% over 1,000 iterations.
-- **Wall-clock time limit** reached (default 38 seconds, configurable via `config.ALNS_TIME_LIMIT`).
+- **Wall-clock time limit** reached (the `time_limit` passed by `solver.py`; `config.ALNS_TIME_LIMIT` = 38 s when called directly). The check runs between iterations, so one long iteration can overshoot it.
 
 ### Configuration
 
 | Parameter                 | Default  | Description                                    |
 |---------------------------|----------|------------------------------------------------|
 | `ALNS_ITERATIONS`         | 10,000   | Max iterations                                 |
-| `ALNS_TIME_LIMIT`         | 38s      | Wall-clock time limit                          |
+| `ALNS_TIME_LIMIT`         | 38s      | Wall-clock limit when no `time_limit` is passed |
 | `DESTROY_RATE_MIN/MAX`    | 0.05/0.40| Base destruction rate range                    |
 | `TEMPERATURE_START/END`   | 100/0.01 | Simulated annealing temperature range          |
 | `WEIGHT_UPDATE_INTERVAL`  | 100      | Iterations between operator weight updates     |
@@ -186,30 +183,19 @@ The solver stops early if any of these conditions are met:
 
 ## Solver 3: VROOM
 
-**Files:** `vroom_solver.py`, `vroom_bridge.py`, `vroom_matrix_patch.py`
+**Files:** `vroom_solver.py`, `vroom_matrix_patch.py`
 
-Uses the [pyvroom](https://github.com/VROOM-Project/pyvroom) library (Python bindings for the VROOM C++ solver) for fast heuristic routing.
+Uses the [pyvroom](https://github.com/VROOM-Project/pyvroom) library (Python bindings for the VROOM C++ solver) for fast heuristic routing. It runs in-process, inside the solver's own child process.
 
-### Isolation Architecture
+pyvroom 1.14's wheels are built against numpy 1.x and fail with `"Incompatible buffer format!"` under numpy 2.x, so `requirements.txt` pins `numpy<2` for the whole service. (An earlier design ran VROOM through a separate `vroom_env` virtualenv. The Docker image never built that venv, so VROOM silently failed in production.)
 
-pyvroom's PyPI wheels are compiled with pybind11 < 2.12 and numpy 1.x headers. pybind11 bakes numpy dtype format strings into the `.so` at compile time. When numpy 2.x is present at runtime, those format strings no longer match, and even passing a plain Python list to `set_durations_matrix()` triggers `"Incompatible buffer format!"` because pybind11's type-caster probes numpy's buffer protocol as a fallback.
+### How it works (`vroom_solver.solve_vroom`)
 
-**Solution:** The main venv keeps numpy 2.x untouched. A sidecar venv named `vroom_env/` carries pyvroom + `numpy < 2`. `vroom_solver.py` communicates with it via subprocess, passing JSON over stdin and reading JSON from stdout.
-
-**Interpreter resolution chain:**
-1. `VROOM_PYTHON_EXE` environment variable
-2. `vroom_env/` in the backend root directory
-3. `vroom_env/` relative to the current working directory
-
-Each candidate is probed with a functional test (imports vroom, calls `set_durations_matrix` with a 2×2 matrix) before use. The system **deliberately never** falls back to `sys.executable` to prevent silent ABI crashes.
-
-### How the Bridge Works (`vroom_bridge.py`)
-
-1. **Parse input** — reads the Excel file and builds a unified location index mapping unique (lat, lng) pairs to integer indices.
-2. **Build matrices** — constructs per-vehicle NxN duration and cost matrices. OSRM edge list data is used where available; haversine × 1.3 road factor is the fallback. Duration matrices are **scaled by each vehicle's speed ratio** relative to a 30 km/h OSRM reference speed. Cost matrices encode the weighted objective `int(100 × (W1·cpk·dist_km + W2·dur_min))`.
-3. **Model the problem** — each employee becomes a VROOM shipment (pickup → delivery pair) with time windows and capacity constraints. Priority delays from metadata are encoded into delivery time window upper bounds. All vehicles are registered with their capacity, availability window, and per-vehicle cost/duration profiles.
-4. **Solve** — `exploration_level=5`, 2 threads, 120-second subprocess timeout.
-5. **Format output** — converts VROOM's solution dataframe into the standardized route_sequence format. Consecutive stops at the same physical location are merged. Route links (`"{from}_{to}"`) are generated for geometry enrichment downstream.
+1. **Parse input**: reads the Excel file and builds a unified location index mapping unique (lat, lng) pairs to integer indices.
+2. **Build matrices**: constructs per-vehicle NxN duration and cost matrices. OSRM edges are looked up by their `from`/`to` endpoints, with haversine × 1.3 road factor as the fallback. Duration matrices are **scaled by each vehicle's speed ratio** relative to a 30 km/h OSRM reference speed. Cost matrices encode `int(100 × (W1·cpk·dist_km + W2·dur_min))` with `W1_COST = 0.7`, `W2_TIME = 0.3`.
+3. **Model the problem**: each employee becomes a VROOM shipment (pickup → delivery pair) with time windows and capacity constraints. Priority delays from metadata are encoded into delivery time window upper bounds.
+4. **Solve**: `exploration_level=5`, 2 threads. The process runner's time limit bounds it.
+5. **Format output**: converts VROOM's solution dataframe into the standardized route_sequence format and generates the `"{from}_{to}"` route link tags.
 
 ### Windows ABI Patch (`vroom_matrix_patch.py`)
 
@@ -219,19 +205,6 @@ On Windows with MSVC, `uint32_t` resolves to `unsigned long` (pybind11 format ch
 2. If the native `"uint32"` doesn't work, monkey-patches `numpy.asarray` within pyvroom's `vroom.input.input` module namespace to substitute the discovered working dtype.
 
 The patch is idempotent and a no-op on Linux/macOS.
-
-### VROOM Setup
-
-**Windows:**
-```bash
-.\setup_vroom_env.bat
-```
-
-**Manual / Linux:**
-```bash
-python3.10 -m venv vroom_env
-vroom_env/bin/pip install "numpy<2" pyvroom pandas openpyxl
-```
 
 ---
 
@@ -267,7 +240,7 @@ Used by LNS, the feasibility scorer, and indirectly by the ALNS solver.
 
 - **`Employee` dataclass** — id, priority, pickup/drop coordinates, earliest_pickup (minutes), latest_drop (minutes), max_delay (minutes from metadata), vehicle_preference, sharing_preference.
 - **`Vehicle` dataclass** — id, capacity, speed (km/h), cost_per_km, category, start coordinates, available_time (minutes).
-- **`DistanceMatrix`** — wraps the OSRM edge list for O(1) lookups by `"{from}_{to}"` key. Fallback chain: reverse key → haversine × 1.3 road factor (if coordinates registered) → hard default (10 km, 30 min).
+- **`DistanceMatrix`** — wraps the OSRM edge list for O(1) lookups by `(from, to)` endpoints, so IDs may contain underscores. Fallback chain: reverse edge → haversine × 1.3 road factor (if coordinates registered) → hard default (10 km, 30 min).
 - **`load_data_from_bytes()`** — parses the Excel file into Employee/Vehicle dicts.
 - **`time_to_minutes()`** — robust time parser handling `datetime.time`, `datetime.datetime`, `"HH:MM"` strings, and Excel time fractions (values < 10.0 are treated as fractions of a day, e.g., 0.375 → 540 minutes).
 - **`haversine()`** — great-circle distance in km.
@@ -306,16 +279,14 @@ All three solvers produce output in the same structure:
 }
 ```
 
-The `routes` array contains link tags in `"{from}_{to}"` format, which are consumed downstream by `geometry_processor.py` to fetch and encode road geometries for map rendering. After enrichment, the `routes` field is replaced with `route_geometry` containing polyline-encoded paths.
+The `routes` array contains link tags in `"{from}_{to}"` format. `geometry_processor.py` resolves each tag by finding the split point where both halves are known IDs, then fetches and encodes the road geometry for map rendering. After enrichment, the `routes` field is replaced with `route_geometry` containing polyline-encoded paths.
 
 ---
 
 ## Debugging & Testing
 
-- **`check_lns.py`** — validates LNS output against an external reference checker (`Utils/solution_check.py`). Expects output at `Output/output_lns.json` and input at `Test_Data/TestCase_TC04.xlsx`.
-- **`debug_alns.py`** (in parent directory) — step-by-step ALNS diagnostic. Traces a single insertion (V01 picks up E01, drops at office), validates the route, then runs a short 5-second ALNS pass.
-- **`vroom_test.py`** (in parent directory) — integration test for the VROOM path with environment diagnostics.
-- **`test_vroom_matrix.py`** (in parent directory) — low-level probe for `_vroom.Matrix` format compatibility.
+- **`scripts/run_solver.py`** (in `backend/`) runs the whole tournament on a workbook without the API or OSRM (haversine distances), e.g. `python scripts/run_solver.py -e algo/templts/TestCase_TC03.xlsx --time-limit 10 --workers 3`.
+- **`tests/`** (in `backend/`): `test_solver.py` runs all three solvers on every workbook here and exercises the process runner. `test_ids.py` checks underscore IDs through each solver. `test_vroom.py` checks the in-process VROOM path.
 
 ---
 
@@ -323,21 +294,22 @@ The `routes` array contains link tags in `"{from}_{to}"` format, which are consu
 
 | Parameter                           | File              | Default      |
 |-------------------------------------|-------------------|--------------|
-| LNS iterations                      | `solver.py` call  | 100          |
+| LNS iterations (or time limit)      | `solver.py` call  | 100          |
 | LNS simulated annealing T₀          | `lns_algo.py`     | 1000         |
 | LNS cooling rate                    | `lns_algo.py`     | 0.995        |
 | LNS destruction rate range          | `lns_algo.py`     | 10–60%       |
 | LNS local search max steps          | `lns_algo.py`     | 100          |
 | LNS unassigned penalty (W5)         | `lns_algo.py`     | 20,000       |
 | LNS hard violation penalty (W6)     | `lns_algo.py`     | 10,000,000   |
-| ALNS max iterations                 | `alns.py`        | 10,000       |
-| ALNS time limit                     | `alns.py`        | 38s          |
-| ALNS early termination (stagnation) | `alns.py`        | 300 iters    |
-| ALNS operator weight decay          | `alns.py`        | 0.8          |
-| ALNS unassigned penalty             | `alns.py`        | 1,000,000    |
-| ALNS hard timeout in solver.py      | `solver.py`       | 150s         |
-| VROOM exploration level             | `vroom_bridge.py` | 5            |
-| VROOM threads                       | `vroom_bridge.py` | 2            |
-| VROOM subprocess timeout            | `vroom_solver.py` | 120s         |
-| Soft violation penalty (ranking)    | `solver.py`       | 100          |
+| ALNS max iterations                 | `alns.py`         | 10,000       |
+| ALNS time limit (direct calls)      | `alns.py`         | 38s          |
+| ALNS early termination (stagnation) | `alns.py`         | 300 iters    |
+| ALNS operator weight decay          | `alns.py`         | 0.8          |
+| ALNS unassigned penalty             | `alns.py`         | 1,000,000    |
+| Per-solver budget (`SOLVER_TIME_LIMIT_S`) | `solver.py` | 40s        |
+| Kill grace (`SOLVER_GRACE_S`)       | `solver.py`       | 30s          |
+| Parallel solver processes (`SOLVER_MAX_WORKERS`) | `solver.py` | 1   |
+| VROOM exploration level             | `vroom_solver.py` | 5            |
+| VROOM threads                       | `vroom_solver.py` | 2            |
+| Soft violation penalty (ranking)    | `solver.py`       | 50           |
 | Road factor (haversine → road)      | multiple files    | 1.3×         |

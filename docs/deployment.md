@@ -3,9 +3,10 @@
 The deployment architecture for Velora: what runs where, why it was chosen, how requests flow, how
 code ships, and what's still left to do.
 
-The rest of `docs/` reviews the code as it was at commit `e695d9b`. That code still uses
-Celery and Redis. This document describes the **target** setup, and the status table at the end
-tracks progress toward it.
+The rest of `docs/` reviews the code as it was at commit `e695d9b`, when it still used Celery and
+Redis. The backend has since been refactored for this setup (see the status table at the end and
+[recommendations.md](recommendations.md)). This document describes the **target** setup, and the
+status table tracks progress toward it.
 
 **Priority:** the web app comes first. The Android build is set up but not tested yet.
 
@@ -122,6 +123,10 @@ Total ~7 GB, leaving ~4 GB for the OS, Docker and future services (plus a 4 GB s
     southern-zone graph (five states) runs to ~6 GB on disk and doesn't fit the VM's memory budget;
     the clipped graph is far smaller. Stop `velora-backend` while this runs, to free RAM.
 - **`SOLVER_MAX_WORKERS=1`.** OSRM shares the same 2 OCPUs and has to keep answering during a solve.
+  The backend runs one job at a time and at most this many solver processes. Each solver gets
+  `SOLVER_TIME_LIMIT_S` (40 s) and is killed after a further `SOLVER_GRACE_S` (30 s), so a job's solver
+  step takes at most ~3.5 minutes. The other backend variables are listed in `backend/README.md`; the
+  hub only needs to set the required three (`DATABASE_URL`, `OSRM_URL`, `SECRET_KEY`), which it does.
 - **First-time setup:** clone → `cp .env.example .env` → `bash osrm/prepare.sh` → `docker compose up -d`.
 
 ## 6. Backend image pipeline
@@ -197,7 +202,9 @@ The order matters. Doing a step early breaks every call.
 2. Deploy the new Worker. Narrow `VERCEL_PROD`'s prefixes to `["/process-routes"]`.
 3. Delete the old `AUTH_TOKEN` Worker secret.
 4. Deploy the frontend to Vercel. From here on, browsers call the Vercel API routes.
-5. Start the real backend on the VM on port 8010. This needs the backend refactor in section 10 first.
+5. Start the real backend on the VM on port 8010. Push the refactored backend to `main` first so the
+   workflow publishes an image that runs in the hub, then make the GHCR package public (section 6).
+   Check `curl http://10.0.0.53:8010/health` on the VM before step 6.
 6. Point the VPC Service at port 8010, then confirm with `wrangler vpc service get`.
 
 ## 10. Status
@@ -207,13 +214,14 @@ The order matters. Doing a step early breaks every call.
 | Velora repo baseline, APKs removed, ignore/attribute rules | Done |
 | `velora-vm-hub` repo (compose, OSRM prep script) | Done locally; remote to be added |
 | Backend image workflow | Committed; the first real run happens on push |
-| Vercel API proxy + build targets | Done; changes not committed yet |
+| Vercel API proxy + build targets | Done (commit `6f4318b`) |
 | New Worker code | Written; not deployed |
-| **Backend refactor: remove Celery/Redis, remove the `vroom_env` bridge, bound solver runtime, create all DB tables** | **Not started. This blocks step 5.** |
+| Backend refactor: remove Celery/Redis, call pyvroom in-process, bound solver runtime, create all DB tables, harden the API | Done and tested locally against Postgres 16 and a stub OSRM using the hub's environment; not pushed yet |
+| Backend test suite (`backend/tests`, run in the image) | Done |
 | OSRM graph built on the VM | Not done |
 | VPC Service switched 8001 → 8010 | Not done (step 6) |
 | Android app build tested on a device (confirm origin `https://localhost`) | Deferred; web first |
-| User login (re-enable backend JWT, wire up login screens, forward the user's token) | Deferred until after the backend refactor |
+| User login (re-enable backend JWT on `/process-routes`, wire up login screens, forward the user's token) | Next, now that the refactor is done. Backend register/login work again |
 | Caddy on the VM routing path prefixes to several backends | Only needed once a second backend exists |
 
 ## 11. Known gaps
@@ -221,9 +229,7 @@ The order matters. Doing a step early breaks every call.
 - **The API routes are public.** The Worker token proves a request came through Vercel, not who sent
   it. Real access control comes with user login. Until then, the routes' narrow scope and input
   checks are the only protection.
-- **The current backend image won't work in the hub.** It still expects Celery/Redis and the
-  `vroom_env` subprocess bridge.
-- **Backend CORS middleware** (`allow_origins=["*"]`) is harmless now, because browsers no longer
-  call the backend's origin. Remove it during the refactor.
+- **Jobs live in memory.** Restarting or redeploying the backend drops queued and running jobs;
+  polling them returns 404, which the frontend shows as a failed job. Deploy when no job is running.
 - **Single VM means single point of failure.** Back up the Postgres volume and `osrm/data/`.
   Regenerating the OSRM graph takes time.
