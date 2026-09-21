@@ -5,9 +5,10 @@ from celery.result import AsyncResult
 from auth import router as auth_router, get_current_user
 from test_routes import router as test_router
 from worker import celery_app, process_optimization_task
-from database import get_db
-from db_models import OptimizationRunLog  # ensures table is registered with Base
+from database import get_db, init_db
+from db_models import OptimizationRunLog
 from sqlalchemy.orm import Session
+from contextlib import asynccontextmanager
 import json
 import logging
 import os
@@ -24,7 +25,13 @@ logging.basicConfig(
 )
 logger = logging.getLogger("fastapi_main")
 
-app = FastAPI()
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    init_db()
+    yield
+
+
+app = FastAPI(lifespan=lifespan)
 
 # For Auth
 app.include_router(auth_router)
@@ -196,7 +203,7 @@ def get_optimization_logs(
             "total_time_min": r.total_time_min,
             "algo_duration_seconds": r.algo_duration_seconds,
             "total_duration_seconds": r.total_duration_seconds,
-            "celery_task_id": r.celery_task_id,
+            "task_id": r.task_id,
             "vehicles_in_solution": r.vehicles_in_solution,
         }
         for r in rows

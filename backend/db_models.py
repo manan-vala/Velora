@@ -1,12 +1,20 @@
 """
 db_models.py – SQLAlchemy ORM models for application data.
 
-All models use the shared Base from database.py so that
-Base.metadata.create_all() picks them up automatically.
+All models use the shared Base from database.py; database.init_db() imports this
+module before calling create_all(), so every table here gets created.
 """
 
 from sqlalchemy import Column, Integer, Float, String, DateTime, func
 from database import Base
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String, unique=True, index=True)
+    hashed_password = Column(String)
 
 
 class OptimizationRunLog(Base):
@@ -36,7 +44,7 @@ class OptimizationRunLog(Base):
     total_duration_seconds = Column(Float, nullable=True)      # Full pipeline
 
     # --- Traceability ---
-    celery_task_id = Column(String, nullable=True)
+    task_id = Column(String, nullable=True)
     vehicles_in_solution = Column(Integer, nullable=True)
 
     def __repr__(self):

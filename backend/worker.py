@@ -5,6 +5,8 @@ import os
 import time
 import traceback
 from celery import Celery
+from celery.signals import worker_init
+from database import init_db
 from models import OptimizationRequest
 from router import MatrixService
 from logic import generate_routes
@@ -27,6 +29,11 @@ logger = logging.getLogger("celery_worker")
 # Initialize Celery pointing to local Redis
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 celery_app = Celery("opti_worker", broker=REDIS_URL, backend=REDIS_URL)
+
+
+@worker_init.connect
+def _init_db_on_worker_start(**_kwargs):
+    init_db()
 
 def run_async(coro):
     """Safely bridge async code into a sync Celery worker context."""
@@ -115,7 +122,7 @@ def process_optimization_task(self, payload_dict: dict, file_path: str, file_byt
                 total_time_min=_score.get("total_time_min", 0.0),
                 algo_duration_seconds=round(algo_elapsed, 2),
                 total_duration_seconds=round(total_time, 2),
-                celery_task_id=self.request.id,
+                task_id=self.request.id,
                 vehicles_in_solution=vehicles_count,
             )
         except Exception as log_err:

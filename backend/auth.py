@@ -1,13 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from sqlalchemy import Column, Integer, String
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 from passlib.context import CryptContext
 from jose import JWTError, jwt
-from database import Base, engine, get_db
+from database import get_db
+from db_models import User
 import os
 
 # --- CONFIGURATION ---
@@ -15,17 +15,7 @@ SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
-# --- 1. DATABASE MODEL ---
-class User(Base):
-    __tablename__ = "users"
-    id = Column(Integer, primary_key=True, index=True)
-    username = Column(String, unique=True, index=True)
-    hashed_password = Column(String)
-
-# Create tables immediately
-Base.metadata.create_all(bind=engine)
-
-# --- 2. PYDANTIC SCHEMAS ---
+# --- PYDANTIC SCHEMAS ---
 class UserCreate(BaseModel):
     username: str
     password: str

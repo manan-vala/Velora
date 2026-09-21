@@ -32,7 +32,7 @@ def log_optimization_run(
     total_time_min: float,
     algo_duration_seconds: Optional[float] = None,
     total_duration_seconds: Optional[float] = None,
-    celery_task_id: Optional[str] = None,
+    task_id: Optional[str] = None,
     vehicles_in_solution: Optional[int] = None,
 ) -> None:
     """Insert a new optimization run log and enforce the row cap.
@@ -57,7 +57,7 @@ def log_optimization_run(
                 total_time_min=total_time_min,
                 algo_duration_seconds=algo_duration_seconds,
                 total_duration_seconds=total_duration_seconds,
-                celery_task_id=celery_task_id,
+                task_id=task_id,
                 vehicles_in_solution=vehicles_in_solution,
             )
             session.add(row)
@@ -83,7 +83,7 @@ def _enforce_log_limit(session, max_rows: int = MAX_LOG_ROWS) -> None:
         # Sub-query: IDs of the oldest `excess` rows
         oldest_ids_sq = (
             select(OptimizationRunLog.id)
-            .order_by(OptimizationRunLog.created_at.asc())
+            .order_by(OptimizationRunLog.created_at.asc(), OptimizationRunLog.id.asc())
             .limit(excess)
             .subquery()
         )
