@@ -1,4 +1,3 @@
-import time
 import uuid
 from datetime import datetime, timedelta, timezone
 
@@ -178,3 +177,17 @@ def test_me_requires_a_token(client):
 def test_old_unprefixed_routes_are_gone(client):
     assert client.post("/register", json={"username": _name(), "password": PASSWORD}).status_code == 404
     assert client.post("/login", data={"username": "x", "password": "y"}).status_code == 404
+
+
+def test_validation_errors_never_echo_the_password(client):
+    secret = "tiny"
+    resp = client.post("/auth/register", json={"username": _name(), "password": secret})
+    assert resp.status_code == 422
+    assert secret not in resp.text
+    assert resp.json()["detail"][0]["loc"] == ["body", "password"]
+
+
+def test_missing_login_fields_are_422_without_input_echo(client):
+    resp = client.post("/auth/login", data={"username": "only-user-given"})
+    assert resp.status_code == 422
+    assert "only-user-given" not in resp.text

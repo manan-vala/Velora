@@ -5,7 +5,9 @@ import logging
 import zipfile
 
 import openpyxl
-from fastapi import FastAPI, HTTPException, Depends, UploadFile, File, Form, Query
+from fastapi import FastAPI, HTTPException, Depends, UploadFile, File, Form, Query, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
@@ -35,6 +37,14 @@ async def lifespan(_app: FastAPI):
 # No CORS middleware: only server-side callers (the Vercel API routes, via the Worker) reach this API.
 app = FastAPI(lifespan=lifespan)
 app.include_router(auth_router)
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_error_handler(_request: Request, exc: RequestValidationError):
+    # FastAPI's default echoes each offending value back ("input"), which would include passwords.
+    return JSONResponse(status_code=422, content={"detail": [
+        {"loc": list(err["loc"]), "msg": err["msg"]} for err in exc.errors()
+    ]})
 
 
 @app.get("/health")
