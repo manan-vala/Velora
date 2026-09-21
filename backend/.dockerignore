@@ -1,0 +1,12 @@
+.env
+.env.*
+!.env.example
+__pycache__/
+*.log
+venv/
+.venv/
+vroom_env/
+temp_uploads/
+docker-compose.yml
+Procfile
+setup_vroom_env.bat
