@@ -106,7 +106,7 @@ There's no free quota for a second VM. Containers still keep services separate:
 
 | Service | Image | Exposure | mem_limit |
 |---|---|---|---|
-| `osrm` | `ghcr.io/project-osrm/osrm-backend:v26.9.0` | internal only | 3g |
+| `osrm` | `ghcr.io/project-osrm/osrm-backend:v26.9.0-debian` | internal only | 3g |
 | `velora-postgres` | `postgres:16-alpine` | internal only | 1g |
 | `velora-backend` | `ghcr.io/manan-vala/velora-backend:${VELORA_BACKEND_TAG}` | `${VM_PRIVATE_IP}:${VELORA_BACKEND_PORT}` (8010) | 5g |
 
