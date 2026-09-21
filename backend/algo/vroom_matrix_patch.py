@@ -33,11 +33,9 @@ the hardcoded "uint32".
 
 USAGE
 -----
-Import this module *before* any vroom.Input call, e.g. the very top of
-vroom_bridge.py:
+Import this module *before* any vroom.Input call, as vroom_solver.py does:
 
-    import vroom_matrix_patch        # apply patch (no-op on Linux/macOS)
-    import vroom
+    from . import vroom_matrix_patch   # apply patch (no-op on Linux/macOS)
 
 The patch is idempotent – importing it a second time is a no-op.
 """
