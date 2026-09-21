@@ -19,7 +19,7 @@ from io import BytesIO
 @dataclass
 class Config:
     ALNS_ITERATIONS: int = 10000
-    ALNS_TIME_LIMIT: int = 38          # 38 s for ALNS; 45 s hard cap in solver.py
+    ALNS_TIME_LIMIT: int = 38          # default when solver.py doesn't pass its own budget
     DESTROY_RATE_MIN: float = 0.05
     DESTROY_RATE_MAX: float = 0.40
     DESTROY_RATE_ADAPTIVE: bool = True
@@ -1050,7 +1050,7 @@ def time_to_fraction(value):
 # BRIDGE: solve_alns (called by solver.py)
 # ==========================================
 
-def solve_alns(input_data, matrix_edge_list, file_bytes, _result_ref=None):
+def solve_alns(input_data, matrix_edge_list, file_bytes, _result_ref=None, time_limit=None):
     build_matrix(matrix_edge_list)
 
     excel_file   = BytesIO(file_bytes)
@@ -1160,7 +1160,7 @@ def solve_alns(input_data, matrix_edge_list, file_bytes, _result_ref=None):
                 "summary": {"total_cost_all_vehicles": round(total_cost, 2)}}
 
     best_sol = solver.solve(
-        time_limit=config.ALNS_TIME_LIMIT,
+        time_limit=time_limit or config.ALNS_TIME_LIMIT,
         result_ref=_result_ref,
         format_fn=_format_solution,
     )

@@ -267,7 +267,8 @@ class LNSOptimizer:
             unassigned.remove(eid)
         return current_routes
 
-    def optimize(self, max_iterations=100):
+    def optimize(self, max_iterations=100, time_limit=None):
+        deadline = time.monotonic() + time_limit if time_limit else None
         # print(f"Starting Enhanced LNS optimization for {max_iterations} iterations...")
         num_employees = len(self.employees)
         
@@ -285,6 +286,8 @@ class LNSOptimizer:
 
         T, cooling = 1000.0, 0.995
         for i in range(max_iterations):
+            if deadline is not None and time.monotonic() >= deadline:
+                break
             iter_dest = random.uniform(0.1, 0.6)
             num_remove = max(1, int(num_employees * iter_dest))
             temp_routes = self._copy_routes(self.current_routes)
