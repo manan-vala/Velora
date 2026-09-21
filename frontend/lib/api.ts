@@ -37,6 +37,10 @@ export const checkOptimizationStatus = async (
 ): Promise<OptimizationStatusResponse> => {
   const response = await fetch(`${apiURL}/status/${taskId}`);
 
+  // Unknown or expired job (e.g. the backend restarted): stop polling instead of retrying forever.
+  if (response.status === 404) {
+    return { status: "failed", error: "Optimization job not found or expired." };
+  }
   if (!response.ok) throw new Error(`Status Error: ${response.status}`);
 
   const result: OptimizationStatusResponse = await response.json();
