@@ -1,20 +1,26 @@
+from contextlib import asynccontextmanager
+from io import BytesIO
+import json
+import logging
+import zipfile
+
+import openpyxl
 from fastapi import FastAPI, HTTPException, Depends, UploadFile, File, Form, Query
-from fastapi.middleware.cors import CORSMiddleware
-from models import OptimizationRequest
+from pydantic import ValidationError
+from sqlalchemy.orm import Session
+
 from auth import router as auth_router, get_current_user
-from test_routes import router as test_router
-from config import MAX_PENDING_JOBS, JOB_RESULT_TTL_S
+from config import MAX_PENDING_JOBS, JOB_RESULT_TTL_S, MAX_UPLOAD_BYTES
 from database import get_db, init_db
 from db_models import OptimizationRunLog
 from jobs import JobQueue, QueueFull
+from models import OptimizationRequest
 from pipeline import run_optimization
-from sqlalchemy.orm import Session
-from contextlib import asynccontextmanager
-import json
-import logging
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger("fastapi_main")
+
+REQUIRED_SHEETS = ("employees", "vehicles", "metadata")
 
 job_queue = JobQueue(max_pending=MAX_PENDING_JOBS, result_ttl_s=JOB_RESULT_TTL_S)
 
@@ -26,22 +32,9 @@ async def lifespan(_app: FastAPI):
     yield
 
 
+# No CORS middleware: only server-side callers (the Vercel API routes, via the Worker) reach this API.
 app = FastAPI(lifespan=lifespan)
-
-# For Auth
 app.include_router(auth_router)
-
-# For Testing
-# Remove in production
-app.include_router(test_router)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 
 @app.get("/health")
@@ -49,28 +42,47 @@ def health_check():
     return {"status": "ok", "queue_depth": job_queue.depth()}
 
 
-# Endpoint 1: Receive the payload and queue the optimization job
-# Auth in testing phase:
-# @app.post("/process-routes/start", dependencies=[Depends(get_current_user)])
+async def _read_upload(file: UploadFile) -> bytes:
+    data = await file.read(MAX_UPLOAD_BYTES + 1)
+    if len(data) > MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail=f"File is larger than {MAX_UPLOAD_BYTES // (1024 * 1024)} MB.")
+    return data
+
+
+def _check_workbook(file_bytes: bytes) -> None:
+    """Fail fast on files the solvers can't read, instead of after the OSRM call."""
+    try:
+        wb = openpyxl.load_workbook(BytesIO(file_bytes), read_only=True)
+    except (zipfile.BadZipFile, KeyError, OSError, ValueError):
+        raise HTTPException(status_code=422, detail="The uploaded file is not a readable .xlsx workbook.")
+    try:
+        missing = [name for name in REQUIRED_SHEETS if name not in wb.sheetnames]
+    finally:
+        wb.close()
+    if missing:
+        raise HTTPException(status_code=422, detail=f"Workbook is missing sheet(s): {', '.join(missing)}.")
+
+
+# Auth on the optimization endpoints waits for the frontend login flow; until then the
+# Cloudflare Worker token (added server-side by Vercel) is what gates access.
 @app.post("/process-routes/start")
 async def start_processing(
     json_data: str = Form(...),
     file: UploadFile = File(...)
 ):
-    logger.info(f"[API] /process-routes/start called. File: {file.filename}")
-
     try:
-        raw = json.loads(json_data)
-        payload = OptimizationRequest(**raw)
-        logger.info(f"[API] Parsed payload: {len(payload.employees)} employees, {len(payload.vehicles)} vehicles")
-    except json.JSONDecodeError as e:
-        logger.error(f"[API] JSON parse error: {e}")
-        raise HTTPException(status_code=400, detail=f"Invalid JSON in json_data: {e}")
-    except Exception as e:
-        logger.error(f"[API] Validation error: {e}")
-        raise HTTPException(status_code=422, detail=f"Validation error: {e}")
+        payload = OptimizationRequest(**json.loads(json_data))
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="json_data is not valid JSON.")
+    except TypeError:
+        raise HTTPException(status_code=422, detail="json_data must be a JSON object.")
+    except ValidationError as e:
+        raise HTTPException(status_code=422, detail=[
+            {"loc": list(err["loc"]), "msg": err["msg"]} for err in e.errors(include_url=False)
+        ])
 
-    file_bytes = await file.read()
+    file_bytes = await _read_upload(file)
+    _check_workbook(file_bytes)
 
     try:
         task_id = job_queue.submit(lambda job_id: run_optimization(job_id, payload, file_bytes))
@@ -79,7 +91,8 @@ async def start_processing(
             status_code=429,
             detail=f"Server is at capacity ({MAX_PENDING_JOBS} jobs queued). Please try again later."
         )
-    logger.info(f"[API] Job queued. task_id={task_id}")
+    logger.info(f"[API] Job {task_id} queued: {len(payload.employees)} employees, "
+                f"{len(payload.vehicles)} vehicles, {len(file_bytes)} bytes")
 
     return {
         "status": "queued",
@@ -88,9 +101,6 @@ async def start_processing(
     }
 
 
-# Endpoint 2: Poll for the status of the job
-# Auth in testing phase:
-# @app.get("/process-routes/status/{task_id}", dependencies=[Depends(get_current_user)])
 @app.get("/process-routes/status/{task_id}")
 def get_processing_status(task_id: str):
     job = job_queue.get(task_id)
@@ -105,7 +115,7 @@ def get_processing_status(task_id: str):
 
 
 # --- Optimization Run Logs ---
-@app.get("/optimization-logs")
+@app.get("/optimization-logs", dependencies=[Depends(get_current_user)])
 def get_optimization_logs(
     limit: int = Query(default=50, ge=1, le=1000),
     offset: int = Query(default=0, ge=0),
