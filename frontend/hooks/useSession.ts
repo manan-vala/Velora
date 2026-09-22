@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { fetchSession, login, logout, signup, type Credentials, type User } from "@/lib/auth";
+import { fetchSession, login, logout, type Credentials, type User } from "@/lib/auth";
 import { useAppStore } from "@/store/useAppStore";
 import { useMobileStore } from "@/store/useMobileStore";
 
@@ -20,19 +20,17 @@ export function useSession() {
     user: query.data ?? null,
     isLoading: query.isPending,
     isAuthenticated: !!query.data,
+    isAdmin: !!query.data?.isAdmin,
   };
 }
 
-function useStartSession(action: (credentials: Credentials) => Promise<User>) {
+export function useLogin() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: action,
-    onSuccess: (user) => queryClient.setQueryData(SESSION_KEY, user),
+    mutationFn: (credentials: Credentials) => login(credentials),
+    onSuccess: (user: User) => queryClient.setQueryData(SESSION_KEY, user),
   });
 }
-
-export const useLogin = () => useStartSession(login);
-export const useSignup = () => useStartSession(signup);
 
 export function useLogout() {
   const queryClient = useQueryClient();

@@ -11,6 +11,7 @@ export interface BackendToken {
   access_token: string;
   expires_in: number;
   username: string;
+  is_admin: boolean;
 }
 
 function cookieAttributes(maxAgeSeconds: number): string {
@@ -56,10 +57,13 @@ export function isAppClient(request: Request): boolean {
   return request.headers.get("origin") === ANDROID_ORIGIN;
 }
 
-/** Builds the login/signup success response: cookie for the web, token in the body for the app. */
+/** Builds the login success response: cookie for the web, token in the body for the app. */
 export function sessionResponse(request: Request, token: BackendToken): Response {
   const expiresAt = new Date(Date.now() + token.expires_in * 1000).toISOString();
-  const body: Record<string, unknown> = { user: { username: token.username }, expiresAt };
+  const body: Record<string, unknown> = {
+    user: { username: token.username, is_admin: token.is_admin },
+    expiresAt,
+  };
   if (isAppClient(request)) body.token = token.access_token;
 
   const headers = new Headers(corsHeaders(request));

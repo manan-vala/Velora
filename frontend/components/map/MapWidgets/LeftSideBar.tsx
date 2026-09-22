@@ -52,7 +52,7 @@ export default function EloraSidebarLayout() {
   const vehicles = parsedData?.vehicles || [];
 
   const { runOptimization, status, isStarting } = useOptimization();
-  const { user } = useSession();
+  const { user, isAdmin } = useSession();
   const logout = useLogout();
   const router = useRouter();
 
@@ -816,6 +816,7 @@ export default function EloraSidebarLayout() {
             { id: "settings", icon: Settings, l: "Settings" },
             { id: "help", icon: HelpCircle, l: "Help" },
             { id: "bug report", icon: Bug, l: "Report Bugs" },
+            ...(isAdmin ? [{ id: "users", icon: Users, l: "User accounts" }] : []),
             { id: "log out", icon: LogOut, l: user ? `Log out (${user.username})` : "Log out" },
           ].map((item) => (
             <div
@@ -823,6 +824,8 @@ export default function EloraSidebarLayout() {
               onClick={() => {
                 if (item.id === "help") {
                   router.push("/visualiser/help");
+                } else if (item.id === "users") {
+                  router.push("/admin");
                 } else if (item.id === "log out") {
                   logout.mutate(undefined, { onSettled: () => router.replace("/login") });
                 }

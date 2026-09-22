@@ -1,4 +1,4 @@
-// Server-only: shared by the /api/auth/login and /api/auth/signup route handlers.
+// Server-only: used by the /api/auth/login route handler.
 
 import { errorMessage, sessionResponse, type BackendToken } from "./session";
 import { callWorker, crossSiteRejection, jsonError } from "./worker";
@@ -20,30 +20,18 @@ export async function readCredentials(
 }
 
 /** Exchanges credentials for a backend token and turns it into a session. */
-export async function startSession(
-  request: Request,
-  path: "/auth/login" | "/auth/register",
-): Promise<Response> {
+export async function startSession(request: Request): Promise<Response> {
   const rejected = crossSiteRejection(request);
   if (rejected) return rejected;
 
   const creds = await readCredentials(request);
   if (creds instanceof Response) return creds;
 
-  const init: RequestInit =
-    path === "/auth/login"
-      ? {
-          method: "POST",
-          headers: { "content-type": "application/x-www-form-urlencoded" },
-          body: new URLSearchParams(creds).toString(),
-        }
-      : {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify(creds),
-        };
-
-  const result = await callWorker(request, path, init);
+  const result = await callWorker(request, "/auth/login", {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams(creds).toString(),
+  });
   if ("error" in result) return result.error;
   const { upstream } = result;
 

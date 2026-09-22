@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useState } from "react";
 
 import { AuthShell } from "@/components/auth/AuthShell";
@@ -30,15 +29,8 @@ export default function LoginForm() {
   return (
     <AuthShell
       title="Sign in"
-      description="Use your Velora account to plan and view routes."
-      footer={
-        <>
-          New here?{" "}
-          <Link href="/signup" className="text-foreground font-medium underline underline-offset-4">
-            Create an account
-          </Link>
-        </>
-      }
+      description="Sign in with the username and password your administrator gave you."
+      footer="Accounts are created by your administrator."
     >
       <form onSubmit={submit} noValidate>
         <FieldGroup className="gap-4">
