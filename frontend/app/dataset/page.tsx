@@ -1,5 +1,7 @@
 "use client";
 
+import { RequireAuth } from "@/components/auth/RequireAuth";
+
 import { useRouter } from "next/navigation";
 import {
   Table,
@@ -11,7 +13,7 @@ import {
 } from "@/components/map/ui/table";
 import { useAppStore } from "@/store/useAppStore";
 
-export default function DatasetPage() {
+function DatasetScreen() {
   const data = useAppStore((s) => s.parsedData);
   const router = useRouter();
 
@@ -162,5 +164,13 @@ export default function DatasetPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function DatasetPage() {
+  return (
+    <RequireAuth>
+      <DatasetScreen />
+    </RequireAuth>
   );
 }

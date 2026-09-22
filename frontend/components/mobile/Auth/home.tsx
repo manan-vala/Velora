@@ -73,7 +73,7 @@ function ArrowArrowRightLg({ className }: { className?: string }) {
 export default function MobileAuth() {
   const router = useRouter();
   const handleGetStarted = () => {
-    router.push('/mobileauth/signup');
+    router.push('/signup');
   };
   return (
     <div className="min-h-screen w-full flex items-center justify-center bg-gray-100 px-4">

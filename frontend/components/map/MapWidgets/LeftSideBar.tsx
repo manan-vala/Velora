@@ -17,10 +17,12 @@ import {
   Users,
   Car,
   Bug,
+  LogOut,
   ChevronRight,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useOptimization } from "@/hooks/useOptimization";
+import { useLogout, useSession } from "@/hooks/useSession";
 import { useAppStore } from "@/store/useAppStore"; // Zustand Store
 import { parseExcel } from "@/lib/excel-parser";
 import { ParsedData, Employee, Vehicle } from "@/types";
@@ -50,6 +52,8 @@ export default function EloraSidebarLayout() {
   const vehicles = parsedData?.vehicles || [];
 
   const { runOptimization, status, isStarting } = useOptimization();
+  const { user } = useSession();
+  const logout = useLogout();
   const router = useRouter();
 
   // Show popup automatically when it finishes processing
@@ -812,12 +816,15 @@ export default function EloraSidebarLayout() {
             { id: "settings", icon: Settings, l: "Settings" },
             { id: "help", icon: HelpCircle, l: "Help" },
             { id: "bug report", icon: Bug, l: "Report Bugs" },
+            { id: "log out", icon: LogOut, l: user ? `Log out (${user.username})` : "Log out" },
           ].map((item) => (
             <div
               key={item.id}
               onClick={() => {
                 if (item.id === "help") {
                   router.push("/visualiser/help");
+                } else if (item.id === "log out") {
+                  logout.mutate(undefined, { onSettled: () => router.replace("/login") });
                 }
               }}
               onMouseEnter={() => setActiveTab(item.id)}

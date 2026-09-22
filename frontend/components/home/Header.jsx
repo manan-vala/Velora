@@ -1,5 +1,7 @@
 import React from "react";
 
+import AuthNavLink from "./AuthNavLink";
+
 /**
  * Header Component
  * Contains the ROUTEOPTI logo and navigation links
@@ -30,6 +32,7 @@ export default function Header() {
         >
           Contact
         </a>
+        <AuthNavLink />
       </nav>
     </header>
   );

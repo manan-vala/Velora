@@ -18,6 +18,8 @@ interface AppState {
   setOptimizationResult: (res: OptimizationResponse) => void;
   setOptimizationTaskId: (id: string | null) => void;
   setOptimizationStatus: (status: "idle" | "processing" | "completed" | "failed") => void;
+  /** Wipes everything from the signed-in user's session (used on logout). */
+  clearOptimization: () => void;
 
   // --- UI STATE ---
   activeVehicleId: string | null;
@@ -89,6 +91,20 @@ export const useMobileStore = create<AppState>((set) => ({
   setOptimizationResult: (res) => set({ optimizationResult: res }),
   setOptimizationTaskId: (id) => set({ optimizationTaskId: id }),
   setOptimizationStatus: (status) => set({ optimizationStatus: status }),
+
+  clearOptimization: () =>
+    set((state) => ({
+      parsedData: null,
+      uploadedFile: null,
+      optimizationResult: null,
+      optimizationTaskId: null,
+      optimizationStatus: "idle",
+      activeVehicleId: null,
+      activeEmployeeId: null,
+      sidebarOpen: false,
+      simulationTargetId: null,
+      layers: { ...state.layers, routes: false },
+    })),
 
   selectVehicle: (id) =>
     set({ activeVehicleId: id, activeEmployeeId: null, sidebarOpen: !!id }),

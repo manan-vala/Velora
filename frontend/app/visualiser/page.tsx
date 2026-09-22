@@ -1,5 +1,7 @@
 "use client";
 
+import { RequireAuth } from "@/components/auth/RequireAuth";
+
 import dynamic from "next/dynamic";
 import { Upload } from "lucide-react";
 import { parseExcel } from "@/lib/excel-parser";
@@ -18,7 +20,7 @@ const MapInterface = dynamic(() => import("@/components/map/MapInterface"), {
 
 import { useRouter } from "next/navigation";
 
-export default function Home() {
+function VisualiserScreen() {
   const router = useRouter();
 
   // Connect to store
@@ -144,5 +146,13 @@ export default function Home() {
         </div>
       )}
     </main>
+  );
+}
+
+export default function VisualiserPage() {
+  return (
+    <RequireAuth>
+      <VisualiserScreen />
+    </RequireAuth>
   );
 }

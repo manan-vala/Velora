@@ -11,6 +11,10 @@ import {
   Layers,
   Settings,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { LogOut } from "lucide-react";
+
+import { useLogout, useSession } from "@/hooks/useSession";
 import HelpHeader from "./HelpWidgets/HelpHeader";
 import HeroCard from "./HelpWidgets/HeroCard";
 import SectionHeading from "./HelpWidgets/SectionHeading";
@@ -26,6 +30,9 @@ type MobileHelpFeedbackProps = {
 
 export default function MobileHelpFeedback({ onClose }: MobileHelpFeedbackProps) {
   const setHelpFaqOpenIndex = useMobileStore((state) => state.setHelpFaqOpenIndex);
+  const router = useRouter();
+  const { user } = useSession();
+  const logout = useLogout();
 
   React.useEffect(() => {
     const prevBodyOverflow = document.body.style.overflow;
@@ -154,6 +161,18 @@ export default function MobileHelpFeedback({ onClose }: MobileHelpFeedbackProps)
       </section>
 
       <SupportCard email="support@routeopti.com" />
+
+      <section className="px-4 pb-10">
+        <button
+          type="button"
+          onClick={() => logout.mutate(undefined, { onSettled: () => router.replace("/login") })}
+          disabled={logout.isPending}
+          className="flex w-full items-center justify-center gap-2 rounded-2xl border border-[#2a2a2a] bg-[#111] py-4 text-sm font-medium text-white disabled:opacity-60"
+        >
+          <LogOut className="h-4 w-4" />
+          {user ? `Log out (${user.username})` : "Log out"}
+        </button>
+      </section>
     </div>
   );
 }
