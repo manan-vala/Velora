@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 
 export default function DeviceRoutingProvider({
@@ -10,7 +10,6 @@ export default function DeviceRoutingProvider({
 }) {
   const router = useRouter();
   const pathname = usePathname();
-  const [isChecking, setIsChecking] = useState(true);
 
   useEffect(() => {
     const checkDevice = () => {
@@ -27,8 +26,6 @@ export default function DeviceRoutingProvider({
         // If desktop and on mobile route, redirect to desktop
         router.replace("/");
       }
-
-      setIsChecking(false);
     };
 
     // Run check initially
@@ -40,11 +37,7 @@ export default function DeviceRoutingProvider({
     // return () => window.removeEventListener('resize', checkDevice);
   }, [pathname, router]);
 
-  // While checking, render nothing to avoid flash of incorrect UI
-  // Note: If you want to render the content immediately anyway, remove `if (isChecking) return null;`
-  if (isChecking) {
-    return null;
-  }
-
+  // Render immediately: the check needs the browser, and holding everything back left
+  // every page (including login) blank in the server-rendered HTML.
   return <>{children}</>;
 }

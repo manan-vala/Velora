@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useCallback } from "react";
 
 /** Only same-site paths, so ?next= can't bounce anyone to another origin. */
@@ -17,15 +17,18 @@ export function isMobileViewport(): boolean {
   );
 }
 
-/** Where a user belongs once signed in: the page they wanted, else the app for their device. */
+/**
+ * Where a user belongs once signed in: the page they wanted, else the app for their device.
+ * ?next is read at call time rather than with useSearchParams, which would make the whole
+ * auth screen client-only and render a blank page until the JS arrives.
+ */
 export function useAuthRedirect() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const next = safeNext(searchParams.get("next"));
 
   const redirectAfterAuth = useCallback(() => {
+    const next = safeNext(new URLSearchParams(window.location.search).get("next"));
     router.replace(next ?? (isMobileViewport() ? "/mobile" : "/visualiser"));
-  }, [next, router]);
+  }, [router]);
 
-  return { redirectAfterAuth, next };
+  return { redirectAfterAuth };
 }
