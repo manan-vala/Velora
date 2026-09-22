@@ -47,7 +47,7 @@ backend/
 ├── database.py              # SQLAlchemy engine, session, init_db()
 ├── db_models.py             # User and OptimizationRunLog models
 ├── optimization_logger.py   # Run logger with a 1,000-row cap
-├── auth.py                  # JWT register/login (bcrypt)
+├── auth.py                  # /auth routes: register, login, me (bcrypt + JWT, login lockout)
 ├── algo/                    # Solvers — see algo/algo_README.md
 ├── scripts/
 │   ├── run_solver.py        # Run the solver tournament on a workbook, no API/OSRM needed
@@ -71,6 +71,7 @@ Copy `.env.example` to `.env`. The service refuses to start without the required
 | `DATABASE_URL` | yes | — | Postgres URL, e.g. `postgresql+psycopg2://user:pass@host:5432/velora` |
 | `OSRM_URL` | yes | — | Base URL of `osrm-routed`, e.g. `http://osrm:5000` |
 | `SECRET_KEY` | yes | — | JWT signing key |
+| `JWT_EXPIRE_MINUTES` | no | `10080` (7 days) | How long a login stays valid |
 | `SOLVER_MAX_WORKERS` | no | `1` | Solver processes running at once (1 on the 2-OCPU VM, so OSRM keeps a core) |
 | `SOLVER_TIME_LIMIT_S` | no | `40` | Each solver's search budget |
 | `SOLVER_GRACE_S` | no | `30` | Extra time before a solver that is still running is killed |
@@ -110,14 +111,32 @@ Interactive API docs: `http://localhost:8080/docs`.
 
 | Method | Path | Auth | Description |
 |---|---|---|---|
-| POST | `/process-routes/start` | — ¹ | Queue an optimization job |
-| GET | `/process-routes/status/{task_id}` | — ¹ | Poll a job |
-| GET | `/optimization-logs` | JWT | Run history, newest first (`limit` ≤ 1000, `offset`) |
-| POST | `/register` | — | Create a user (password 8–72 bytes), returns a JWT |
-| POST | `/login` | — | OAuth2 password form, returns a JWT |
+| POST | `/process-routes/start` | JWT | Queue an optimization job |
+| GET | `/process-routes/status/{task_id}` | JWT | Poll your own job |
+| GET | `/optimization-logs` | JWT | Your run history, newest first (`limit` ≤ 1000, `offset`) |
+| POST | `/auth/register` | — | Create a user, returns a token |
+| POST | `/auth/login` | — | OAuth2 password form, returns a token |
+| GET | `/auth/me` | JWT | The signed-in username |
 | GET | `/health` | — | `{"status": "ok", "queue_depth": n}` |
 
-¹ Until the frontend has a login flow, the Cloudflare Worker token (added server-side by the Vercel API routes) gates these routes. The Worker only forwards `/process-routes`.
+The Cloudflare Worker must forward both `/process-routes` and `/auth` for the deployed app to work.
+
+### Authentication
+
+- **Accounts.** Registration is open. Usernames are trimmed, lowercased and limited to 3–32
+  characters from `[a-z0-9._-]`; a taken name returns 409. Passwords are 8–72 bytes (bcrypt's
+  limit) and are stored as bcrypt hashes.
+- **Tokens.** `/auth/register` and `/auth/login` return `{access_token, token_type, expires_in,
+  username}`. Tokens are HS256 JWTs carrying `sub`, `iat` and `exp`, valid for
+  `JWT_EXPIRE_MINUTES`. Send them as `Authorization: Bearer <token>`. There is no refresh or
+  revocation: to end a session, the client drops the token.
+- **Login protection.** Five failed logins for one username within 15 minutes lock it for the rest
+  of the window (429 with `Retry-After`), even with the right password; a success resets the
+  count. Unknown usernames are checked against a dummy hash, so timing doesn't reveal which
+  accounts exist, and both cases return the same message.
+- **Per-user data.** A job belongs to the user who started it: polling someone else's task ID
+  returns the same 404 as an unknown one, and `/optimization-logs` only lists your own runs. The
+  pending-job limit stays global, since it protects the shared VM.
 
 **`POST /process-routes/start`** takes a multipart form:
 

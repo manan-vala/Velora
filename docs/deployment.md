@@ -150,7 +150,17 @@ Per-caller design. Its code lives with the VM notes, outside this repo.
 - **Token check:** constant-time comparison of SHA-256 hashes.
 - **Rotation:** `TOKEN_<NAME>_NEXT` lets the old and new token both work during a change.
 - **Path limits:** each caller can only reach its own path prefixes; anything else gets 403.
-  Narrow `VERCEL_PROD` to `["/process-routes"]`.
+  Set `VERCEL_PROD` to `["/process-routes", "/auth"]` — the app needs `/auth/login`,
+  `/auth/register` and `/auth/me` as well as the optimization routes:
+
+  ```jsonc
+  // wrangler.jsonc
+  "CALLERS": [
+    { "name": "VERCEL_PROD", "prefixes": ["/process-routes", "/auth"] }
+  ]
+  ```
+- **Authorization passes through.** The Worker forwards the user's `Authorization: Bearer` header
+  untouched; only `x-auth-token` is stripped. No Worker code change is needed for login.
 - **Headers to the backend:** the Worker removes `x-auth-token` before forwarding, and sets `x-caller: <NAME>`.
 - **No CORS handling, on purpose.** Only server-side callers talk to it.
 - **Routing:** the target host and port come from the VPC Service config, not from the Worker code.
@@ -168,12 +178,19 @@ Per-caller design. Its code lives with the VM notes, outside this repo.
 - **`POST /api/optimize/start`:**
   - rejects bodies over 4 MB with 413 (Vercel's hard limit is about 4.5 MB)
   - requires a string `json_data` and a `file`, otherwise 400
+  - requires a session, and adds the user's token as `Authorization: Bearer`
   - forwards only those two fields to `/process-routes/start`
 - **`GET /api/optimize/status/{taskId}`:**
   - requires `taskId` to be a UUID, otherwise 400. This stops input like `../` from reaching other backend paths.
   - forwards to `/process-routes/status/{taskId}`
-- **When the Worker rejects a request (401/403):** the route returns 502 "gateway misconfigured",
-  so clients don't mistake it for a login prompt.
+- **`POST /api/auth/login`, `/api/auth/signup`, `/api/auth/logout`, `GET /api/auth/me`:** exchange
+  credentials with the backend and keep the JWT in an httpOnly, SameSite=Lax cookie scoped to
+  `/api`, expiring with the token. The browser never sees the token. State-changing routes reject
+  a foreign `Origin` (CSRF guard). The Capacitor app, which can't use cross-site cookies, gets the
+  token in the response body and sends it back as a header.
+- **When the Worker rejects a request (401/403):** the Worker answers in plain text, so the route
+  returns 502 "gateway misconfigured". The backend's own JSON 401 passes through unchanged, so an
+  expired session reaches the client as a session error rather than a gateway fault.
 - **CORS:** only `https://localhost`, the Capacitor Android origin, is allowed. Browsers on the web
   deployment use the same origin, so they don't need it.
 - **Region:** `frontend/vercel.json` sets `bom1` (Mumbai), close to the VM. Check the region on the
@@ -186,7 +203,7 @@ Per-caller design. Its code lives with the VM notes, outside this repo.
 | `NEXT_PUBLIC_MAPS_API_KEY` | client | Vercel + local |
 | `WORKER_URL` | server only | Vercel + local |
 | `WORKER_TOKEN` | server only; must equal the Worker's `TOKEN_VERCEL_PROD` | Vercel + local `.env` (gitignored) |
-| `NEXT_PUBLIC_API_BASE_URL` | client, app build only | Set when running `build:app` |
+| `NEXT_PUBLIC_API_BASE_URL` | client, app build only | Set when running `build:app`. Now the API **root** (`https://<domain>/api`), not `/api/optimize` |
 
 **Checks done so far:**
 - typecheck, lint and web build pass
@@ -199,7 +216,7 @@ Per-caller design. Its code lives with the VM notes, outside this repo.
 The order matters. Doing a step early breaks every call.
 
 1. Set the Worker secret `TOKEN_VERCEL_PROD`, and put the same value in Vercel as `WORKER_TOKEN`.
-2. Deploy the new Worker. Narrow `VERCEL_PROD`'s prefixes to `["/process-routes"]`.
+2. Deploy the new Worker with `VERCEL_PROD`'s prefixes set to `["/process-routes", "/auth"]`.
 3. Delete the old `AUTH_TOKEN` Worker secret.
 4. Deploy the frontend to Vercel. From here on, browsers call the Vercel API routes.
 5. Start the real backend on the VM on port 8010. Push the refactored backend to `main` first so the
@@ -221,14 +238,17 @@ The order matters. Doing a step early breaks every call.
 | OSRM graph built on the VM | Not done |
 | VPC Service switched 8001 → 8010 | Not done (step 6) |
 | Android app build tested on a device (confirm origin `https://localhost`) | Deferred; web first |
-| User login (re-enable backend JWT on `/process-routes`, wire up login screens, forward the user's token) | Next, now that the refactor is done. Backend register/login work again |
+| User login: JWT required on `/process-routes`, real login/signup screens, session cookie in the Vercel routes, per-user jobs and logs | Done and tested locally; needs the Worker prefix change above before deploying |
 | Caddy on the VM routing path prefixes to several backends | Only needed once a second backend exists |
 
 ## 11. Known gaps
 
-- **The API routes are public.** The Worker token proves a request came through Vercel, not who sent
-  it. Real access control comes with user login. Until then, the routes' narrow scope and input
-  checks are the only protection.
+- **Anyone can register.** Signup is open by design, so "signed in" only means someone made an
+  account; it isn't a list of approved staff. Invite codes or an admin approval step would be the
+  next move if that matters.
+- **Sessions can't be revoked.** JWTs are stateless and last `JWT_EXPIRE_MINUTES` (7 days by
+  default). Logging out drops the cookie, but a stolen token stays valid until it expires.
+  Shortening the lifetime or adding a deny-list is the fix if that becomes a concern.
 - **Jobs live in memory.** Restarting or redeploying the backend drops queued and running jobs;
   polling them returns 404, which the frontend shows as a failed job. Deploy when no job is running.
 - **Single VM means single point of failure.** Back up the Postgres volume and `osrm/data/`.

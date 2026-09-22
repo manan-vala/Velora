@@ -8,6 +8,7 @@ A high-performance web application for visualizing and optimizing fleet routes a
 
 - [Tech Stack](#tech-stack)
 - [Architecture Overview](#architecture-overview)
+- [Authentication](#authentication)
 - [Key Features](#key-features)
 - [Folder Structure](#folder-structure)
 - [Local Setup](#local-setup)
@@ -50,6 +51,30 @@ Backend processing follows a job-based polling architecture, implemented in the 
 1. **Job initiation** — a `useMutation` call sends the parsed JSON data and the original Excel file to the backend `/start` endpoint via `FormData`. On success, it stores the returned `taskId` in the Zustand store.
 2. **Smart polling** — a `useQuery` hook polls the `/status/{taskId}` endpoint every 15 seconds. Polling automatically halts when the response status is `"completed"` or `"failed"`.
 3. **Auto-sync** — a `useEffect` watches the polling result. On completion, the optimization result is written to the Zustand store, the route layer is automatically enabled, and the task ID is cleared.
+
+### Authentication and Session
+
+Every optimization endpoint requires a signed-in user, so the app has real login and signup
+screens at `/login` and `/signup` (`components/auth/`), built from the base-ui components in
+`components/map/ui`. `/mobileauth/login` and `/mobileauth/signup` render the same screens.
+
+- **Where the token lives.** Login and signup post to `/api/auth/login|signup`. Those routes
+  exchange the credentials with the backend and keep the JWT in an httpOnly, SameSite=Lax cookie
+  scoped to `/api`, so page scripts can never read it. The browser only learns the username.
+- **Sending it upstream.** `/api/optimize/*` reads the cookie and forwards it to the backend as a
+  Bearer token. Without a session those routes answer 401 without calling upstream.
+- **Session state.** `useSession` (React Query, key `["session"]`) reads `/api/auth/me`;
+  `useLogin`, `useSignup` and `useLogout` update it. A 401 from any other query clears the
+  session, so an expired login sends the user back to `/login` instead of retrying forever.
+- **Guards.** `RequireAuth` wraps `/visualiser`, `/dataset` and `/mobile`, redirecting to
+  `/login?next=<page>` (same-site paths only) and back again after signing in. Signed-in users are
+  bounced away from the auth screens.
+- **Logging out** clears both Zustand stores, so the next person on a shared browser doesn't
+  inherit the previous upload or routes. It sits in the desktop sidebar and on the mobile help
+  screen.
+- **Android app.** Cross-site cookies don't survive in the Capacitor WebView, so login and signup
+  return the token to that origin instead; `lib/client.ts` stores it and sends it as an
+  `Authorization` header.
 
 ### Hybrid Map Rendering Engine
 
@@ -102,10 +127,21 @@ The mapping interface (`MapInterface.tsx` for desktop, `MobileGoogleMap` for mob
   useMobileOptimization.ts   TanStack Query polling logic (mobile)
 
 /app/api/optimize            Web-only API routes proxying to the Cloudflare Worker (*.web.ts)
+/app/api/auth                Web-only login, signup, logout and session routes (*.web.ts)
+/app/login, /app/signup      Auth screens
+
+/components/auth             Login and signup forms, shell, route guards
+
+/hooks
+  useSession.ts              Session state and the login/signup/logout mutations
+  useAuthRedirect.ts         Where to send a user after signing in
 
 /lib
   api.ts                     Client for the /api/optimize routes (start job, check status)
+  auth.ts                    Client for the /api/auth routes
+  client.ts                  Shared fetch helper: API root, typed errors, app-build token
   worker.ts                  Server-side Worker proxy used by the API routes
+  session.ts                 Server-side session cookie helpers
   excel-parser.ts            Excel file parsing with ExcelJS
   export-excel.ts            Optimization result export to .xlsx
   map-utils.ts               Polyline decoding and map coordinate utilities
@@ -169,7 +205,7 @@ The application will be available at `http://localhost:3000`.
 | `NEXT_PUBLIC_MAPS_API_KEY` | web + app | Google Maps API key used to load the Maps JavaScript API and render the map.                                 |
 | `WORKER_URL`               | web       | Cloudflare Worker URL. Server-only: read by the API routes, never sent to the browser.                       |
 | `WORKER_TOKEN`             | web       | Token the API routes send to the Worker as `x-auth-token`. Server-only.                                      |
-| `NEXT_PUBLIC_API_BASE_URL` | app       | Only for `build:app`: `https://<vercel-domain>/api/optimize`. The web build leaves it unset and calls `/api/optimize`. |
+| `NEXT_PUBLIC_API_BASE_URL` | app       | Only for `build:app`: the API root, `https://<vercel-domain>/api`. The web build leaves it unset and uses `/api`. |
 
 On Vercel, set `NEXT_PUBLIC_MAPS_API_KEY`, `WORKER_URL` and `WORKER_TOKEN`, with the project root directory set to `frontend/`.
 
@@ -185,7 +221,8 @@ One codebase produces two builds:
 - **Android app** (`npm run build:app`): a static export into `out/` for Capacitor. Files ending in
   `.web.ts` are excluded, so it contains no API routes and no secrets. The app calls the web
   deployment's API routes at `NEXT_PUBLIC_API_BASE_URL`, which allow the Capacitor origin
-  `https://localhost` via CORS.
+  `https://localhost` via CORS. Note that `NEXT_PUBLIC_API_BASE_URL` is now the API root
+  (`https://<vercel-domain>/api`), not the `/api/optimize` prefix it used to be.
 
 ---
 
