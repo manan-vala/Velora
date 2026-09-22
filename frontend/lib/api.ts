@@ -3,31 +3,23 @@ import {
   OptimizationStartResponse,
   OptimizationStatusResponse,
 } from "@/types";
-
-// Web calls its own Vercel API routes; the app build sets the absolute Vercel URL.
-const apiURL = process.env.NEXT_PUBLIC_API_BASE_URL || "/api/optimize";
+import { apiFetch, apiJson } from "./client";
 
 // 1. Function to DROP OFF data and get a Task ID
 export const startOptimizationJob = async (
   data: ParsedData,
   file: File,
 ): Promise<string> => {
-  console.log("[API] Parsed Excel JSON being sent:", data);
-
   const formData = new FormData();
   formData.append("json_data", JSON.stringify(data));
   formData.append("file", file, file.name);
 
-  const response = await fetch(`${apiURL}/start`, {
+  // Do NOT set Content-Type: the browser adds the multipart boundary.
+  const result = await apiJson<OptimizationStartResponse>("/optimize/start", {
     method: "POST",
-    body: formData, // Do NOT set Content-Type, browser handles boundary automatically
+    body: formData,
   });
-
-  if (!response.ok)
-    throw new Error(`Error: ${response.status} ${response.statusText}`);
-
-  const result: OptimizationStartResponse = await response.json();
-  console.log("[API] /start response:", result);
+  console.log("[API] /optimize/start response:", result);
   return result.task_id;
 };
 
@@ -35,15 +27,11 @@ export const startOptimizationJob = async (
 export const checkOptimizationStatus = async (
   taskId: string,
 ): Promise<OptimizationStatusResponse> => {
-  const response = await fetch(`${apiURL}/status/${taskId}`);
-
   // Unknown or expired job (e.g. the backend restarted): stop polling instead of retrying forever.
+  const response = await apiFetch(`/optimize/status/${taskId}`, {}, [404]);
+
   if (response.status === 404) {
     return { status: "failed", error: "Optimization job not found or expired." };
   }
-  if (!response.ok) throw new Error(`Status Error: ${response.status}`);
-
-  const result: OptimizationStatusResponse = await response.json();
-  console.log(`[API] /status/${taskId} response:`, result);
-  return result;
+  return (await response.json()) as OptimizationStatusResponse;
 };

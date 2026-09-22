@@ -1,9 +1,16 @@
-import { forwardToWorker, jsonError, preflight } from "@/lib/worker";
+import { sessionToken } from "@/lib/session";
+import { crossSiteRejection, forwardToWorker, jsonError, preflight } from "@/lib/worker";
 
 // Vercel rejects function bodies above ~4.5 MB with an opaque error; fail clearly first.
 const MAX_BODY_BYTES = 4 * 1024 * 1024;
 
 export async function POST(request: Request) {
+  const rejected = crossSiteRejection(request);
+  if (rejected) return rejected;
+
+  const token = sessionToken(request);
+  if (!token) return jsonError(request, 401, "Please sign in to run an optimization.");
+
   const length = Number(request.headers.get("content-length") ?? 0);
   if (length > MAX_BODY_BYTES) {
     return jsonError(request, 413, "Upload is too large (max 4 MB).");
@@ -28,6 +35,7 @@ export async function POST(request: Request) {
 
   return forwardToWorker(request, "/process-routes/start", {
     method: "POST",
+    headers: { authorization: `Bearer ${token}` },
     body: upstreamForm,
   });
 }
