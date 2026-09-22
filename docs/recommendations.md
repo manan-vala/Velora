@@ -19,7 +19,7 @@ Status notes after each item reflect the backend refactor that followed this rev
 
 ## Security
 
-10. Re-enable auth on `/process-routes/*` and `/optimization-logs`; wire the mobile login/signup to the backend. — **Done.** `/process-routes/*` and `/optimization-logs` require a JWT; jobs and logs are per user. The mobile screens now talk to the backend, and the desktop app has login too.
+10. Re-enable auth on `/process-routes/*` and `/optimization-logs`; wire the mobile login/signup to the backend. — **Done.** `/process-routes/*` and `/optimization-logs` require a JWT; jobs and logs are per user. The mobile screens now talk to the backend, and the desktop app has login too. Signup was then removed entirely: the superadmin creates accounts in `/admin`, and revoking one ends the user's session at once.
 11. Remove or env-gate `/test/run-solver`. — **Done.** Removed.
 12. Limit upload size, sanitize filenames (or drop the disk copy), restrict CORS origins, require `SECRET_KEY` at startup, stop returning raw exception text, remove default DB credentials. *(B10)* — **Done.** 4 MB upload limit, no disk copy of uploads, no CORS middleware, required `SECRET_KEY`/`DATABASE_URL`, no raw exception text in responses.
 13. Restrict the Google Maps key by referrer / package name.

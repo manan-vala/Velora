@@ -26,6 +26,8 @@ services:
       DATABASE_URL: postgresql+psycopg2://velora:velora@db:5432/velora
       OSRM_URL: ${OSRM_URL:?set OSRM_URL in .env}
       SECRET_KEY: ${SECRET_KEY:?set SECRET_KEY in .env}
+      SUPERADMIN_USERNAME: ${SUPERADMIN_USERNAME:-admin}
+      SUPERADMIN_PASSWORD: ${SUPERADMIN_PASSWORD:?set SUPERADMIN_PASSWORD in .env}
       SOLVER_MAX_WORKERS: ${SOLVER_MAX_WORKERS:-1}
 
 volumes:

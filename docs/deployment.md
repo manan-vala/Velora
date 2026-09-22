@@ -126,7 +126,10 @@ Total ~7 GB, leaving ~4 GB for the OS, Docker and future services (plus a 4 GB s
   The backend runs one job at a time and at most this many solver processes. Each solver gets
   `SOLVER_TIME_LIMIT_S` (40 s) and is killed after a further `SOLVER_GRACE_S` (30 s), so a job's solver
   step takes at most ~3.5 minutes. The other backend variables are listed in `backend/README.md`; the
-  hub only needs to set the required three (`DATABASE_URL`, `OSRM_URL`, `SECRET_KEY`), which it does.
+  hub only needs to set the required ones: `DATABASE_URL`, `OSRM_URL`, `SECRET_KEY` and now also
+  `SUPERADMIN_USERNAME` / `SUPERADMIN_PASSWORD`. **Add those two to the hub's `.env` before
+  deploying**, or the backend won't start. Changing the password there rotates it on the next
+  restart.
 - **First-time setup:** clone → `cp .env.example .env` → `bash osrm/prepare.sh` → `docker compose up -d`.
 
 ## 6. Backend image pipeline
@@ -183,9 +186,11 @@ Per-caller design. Its code lives with the VM notes, outside this repo.
 - **`GET /api/optimize/status/{taskId}`:**
   - requires `taskId` to be a UUID, otherwise 400. This stops input like `../` from reaching other backend paths.
   - forwards to `/process-routes/status/{taskId}`
-- **`POST /api/auth/login`, `/api/auth/signup`, `/api/auth/logout`, `GET /api/auth/me`:** exchange
-  credentials with the backend and keep the JWT in an httpOnly, SameSite=Lax cookie scoped to
-  `/api`, expiring with the token. The browser never sees the token. State-changing routes reject
+- **`POST /api/auth/login`, `/api/auth/logout`, `GET /api/auth/me`:** exchange credentials with
+  the backend and keep the JWT in an httpOnly, SameSite=Lax cookie scoped to `/api`, expiring with
+  the token (24 h).
+- **`/api/admin/[...path]`:** the superadmin's user management, restricted to the handful of
+  backend paths it needs. The browser never sees the token. State-changing routes reject
   a foreign `Origin` (CSRF guard). The Capacitor app, which can't use cross-site cookies, gets the
   token in the response body and sends it back as a header.
 - **When the Worker rejects a request (401/403):** the Worker answers in plain text, so the route
@@ -238,17 +243,19 @@ The order matters. Doing a step early breaks every call.
 | OSRM graph built on the VM | Not done |
 | VPC Service switched 8001 → 8010 | Not done (step 6) |
 | Android app build tested on a device (confirm origin `https://localhost`) | Deferred; web first |
-| User login: JWT required on `/process-routes`, real login/signup screens, session cookie in the Vercel routes, per-user jobs and logs | Done and tested locally; needs the Worker prefix change above before deploying |
+| User login: JWT required on `/process-routes`, login screen, session cookie in the Vercel routes, per-user jobs and logs | Done and tested locally |
+| Superadmin-managed accounts (no signup) and the `/admin` dashboard | Done and tested locally; needs `SUPERADMIN_USERNAME` / `SUPERADMIN_PASSWORD` in the hub `.env` |
+| Worker prefixes `["/process-routes", "/auth"]` | Done |
 | Caddy on the VM routing path prefixes to several backends | Only needed once a second backend exists |
 
 ## 11. Known gaps
 
-- **Anyone can register.** Signup is open by design, so "signed in" only means someone made an
-  account; it isn't a list of approved staff. Invite codes or an admin approval step would be the
-  next move if that matters.
-- **Sessions can't be revoked.** JWTs are stateless and last `JWT_EXPIRE_MINUTES` (7 days by
-  default). Logging out drops the cookie, but a stolen token stays valid until it expires.
-  Shortening the lifetime or adding a deny-list is the fix if that becomes a concern.
+- **One superadmin, defined by the environment.** There is no way to promote a second admin from
+  the dashboard, and the superadmin's password lives in the hub's `.env`. Losing it means editing
+  that file and restarting.
+- **Tokens last 24 hours and can't be cancelled individually.** Revoking a user does cut them off
+  immediately (every request checks the account), but "log out everywhere" for a user who keeps
+  their access would need a password regeneration.
 - **Jobs live in memory.** Restarting or redeploying the backend drops queued and running jobs;
   polling them returns 404, which the frontend shows as a failed job. Deploy when no job is running.
 - **Single VM means single point of failure.** Back up the Postgres volume and `osrm/data/`.

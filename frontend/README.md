@@ -54,13 +54,16 @@ Backend processing follows a job-based polling architecture, implemented in the 
 
 ### Authentication and Session
 
-Every optimization endpoint requires a signed-in user, so the app has real login and signup
-screens at `/login` and `/signup` (`components/auth/`), built from the base-ui components in
-`components/map/ui`. `/mobileauth/login` and `/mobileauth/signup` render the same screens.
+Every optimization endpoint requires a signed-in user. There is no signup: the superadmin creates
+accounts in the dashboard at `/admin`, and people sign in at `/login` (`components/auth/`, built
+from the base-ui components in `components/map/ui`). `/mobileauth/login` renders the same screen.
 
-- **Where the token lives.** Login and signup post to `/api/auth/login|signup`. Those routes
-  exchange the credentials with the backend and keep the JWT in an httpOnly, SameSite=Lax cookie
-  scoped to `/api`, so page scripts can never read it. The browser only learns the username.
+- **Where the token lives.** Login posts to `/api/auth/login`, which exchanges the credentials
+  with the backend and keeps the JWT in an httpOnly, SameSite=Lax cookie scoped to `/api`, so page
+  scripts can never read it. The browser only learns the username and whether they're an admin.
+- **Managing users.** `/admin` (admins only) lists accounts and can add, revoke, restore, delete
+  and regenerate passwords, through `/api/admin/[...path]`. A generated password is shown once,
+  with a copy button.
 - **Sending it upstream.** `/api/optimize/*` reads the cookie and forwards it to the backend as a
   Bearer token. Without a session those routes answer 401 without calling upstream.
 - **Session state.** `useSession` (React Query, key `["session"]`) reads `/api/auth/me`;
@@ -72,9 +75,9 @@ screens at `/login` and `/signup` (`components/auth/`), built from the base-ui c
 - **Logging out** clears both Zustand stores, so the next person on a shared browser doesn't
   inherit the previous upload or routes. It sits in the desktop sidebar and on the mobile help
   screen.
-- **Android app.** Cross-site cookies don't survive in the Capacitor WebView, so login and signup
-  return the token to that origin instead; `lib/client.ts` stores it and sends it as an
-  `Authorization` header.
+- **Android app.** Cross-site cookies don't survive in the Capacitor WebView, so login returns the
+  token to that origin instead; `lib/client.ts` stores it and sends it as an `Authorization`
+  header.
 
 ### Hybrid Map Rendering Engine
 
@@ -127,18 +130,22 @@ The mapping interface (`MapInterface.tsx` for desktop, `MobileGoogleMap` for mob
   useMobileOptimization.ts   TanStack Query polling logic (mobile)
 
 /app/api/optimize            Web-only API routes proxying to the Cloudflare Worker (*.web.ts)
-/app/api/auth                Web-only login, signup, logout and session routes (*.web.ts)
-/app/login, /app/signup      Auth screens
+/app/api/auth                Web-only login, logout and session routes (*.web.ts)
+/app/api/admin               Web-only proxy for the admin user-management API (*.web.ts)
+/app/login                   Sign-in screen
+/app/admin                   User accounts dashboard
 
-/components/auth             Login and signup forms, shell, route guards
+/components/auth             Login form, shell, route guards
+/components/admin            User accounts dashboard
 
 /hooks
-  useSession.ts              Session state and the login/signup/logout mutations
+  useSession.ts              Session state and the login/logout mutations
   useAuthRedirect.ts         Where to send a user after signing in
 
 /lib
   api.ts                     Client for the /api/optimize routes (start job, check status)
   auth.ts                    Client for the /api/auth routes
+  admin.ts                   Client for the /api/admin routes
   client.ts                  Shared fetch helper: API root, typed errors, app-build token
   worker.ts                  Server-side Worker proxy used by the API routes
   session.ts                 Server-side session cookie helpers
