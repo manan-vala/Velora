@@ -5,16 +5,28 @@ All models use the shared Base from database.py; database.init_db() imports this
 module before calling create_all(), so every table here gets created.
 """
 
-from sqlalchemy import Column, Integer, Float, String, DateTime, func
+from sqlalchemy import Boolean, Column, Integer, Float, String, DateTime, func
 from database import Base
 
 
 class User(Base):
+    """An account the superadmin created. There is no self-service signup."""
+
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String, unique=True, index=True)
-    hashed_password = Column(String)
+    hashed_password = Column(String, nullable=False)
+
+    is_admin = Column(Boolean, nullable=False, default=False)
+    # Revoking access flips this; every request checks it, so it takes effect at once.
+    is_active = Column(Boolean, nullable=False, default=True)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    last_login_at = Column(DateTime(timezone=True), nullable=True)
+    # Bumped when a password is regenerated or access is revoked. A token carries the version it
+    # was minted with, so older sessions stop working at once (JWT timestamps are too coarse).
+    token_version = Column(Integer, nullable=False, default=0)
 
 
 class OptimizationRunLog(Base):

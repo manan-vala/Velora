@@ -11,9 +11,9 @@ from fixtures import payload_from_workbook
 from jobs import JobError, JobQueue
 
 
-def _signed_in(c, username=None):
-    username = username or f"user-{uuid.uuid4().hex[:8]}"
-    resp = c.post("/auth/register", json={"username": username, "password": "correct horse battery"})
+def _sign_in(c, make_account, username=None):
+    username, password = make_account(username)
+    resp = c.post("/auth/login", data={"username": username, "password": password})
     assert resp.status_code == 200, resp.text
     c.headers["Authorization"] = f"Bearer {resp.json()['access_token']}"
     return username
@@ -27,8 +27,8 @@ def anon_client(monkeypatch):
 
 
 @pytest.fixture
-def client(anon_client):
-    anon_client.username = _signed_in(anon_client)
+def client(anon_client, make_account):
+    anon_client.username = _sign_in(anon_client, make_account)
     return anon_client
 
 
@@ -234,19 +234,19 @@ def test_bad_token_is_rejected_before_any_work(anon_client, fake_pipeline, workb
     assert not fake_pipeline
 
 
-def test_users_cannot_see_each_others_tasks(anon_client, fake_pipeline, workbook_bytes):
-    _signed_in(anon_client, f"alice-{uuid.uuid4().hex[:6]}")
+def test_users_cannot_see_each_others_tasks(anon_client, make_account, fake_pipeline, workbook_bytes):
+    _sign_in(anon_client, make_account, f"alice-{uuid.uuid4().hex[:6]}")
     data, files = _form(workbook_bytes)
     task_id = anon_client.post("/process-routes/start", data=data, files=files).json()["task_id"]
     assert _poll(anon_client, task_id)["status"] == "completed"
 
-    _signed_in(anon_client, f"bob-{uuid.uuid4().hex[:6]}")
+    _sign_in(anon_client, make_account, f"bob-{uuid.uuid4().hex[:6]}")
     resp = anon_client.get(f"/process-routes/status/{task_id}")
     assert resp.status_code == 404
     assert resp.json() == {"detail": "Unknown or expired task."}
 
 
-def test_optimization_logs_only_show_the_callers_runs(anon_client):
+def test_optimization_logs_only_show_the_callers_runs(anon_client, make_account):
     from optimization_logger import log_optimization_run
 
     def log(username, filename):
@@ -254,7 +254,7 @@ def test_optimization_logs_only_show_the_callers_runs(anon_client):
                              employees_served=1, hard_violations=0, soft_violations=0, objective_score=1.0,
                              total_cost=1.0, total_time_min=1.0, task_id=f"t-{filename}", username=username)
 
-    alice = _signed_in(anon_client, f"alice-{uuid.uuid4().hex[:6]}")
+    alice = _sign_in(anon_client, make_account, f"alice-{uuid.uuid4().hex[:6]}")
     log(alice, "alice.xlsx")
     log("someone-else", "other.xlsx")
     rows = anon_client.get("/optimization-logs").json()

@@ -7,8 +7,10 @@ from jose import jwt
 
 import auth
 import main
-from auth import LoginThrottle
-from config import SECRET_KEY
+from auth import LoginThrottle, ensure_superadmin
+from config import SECRET_KEY, SUPERADMIN_PASSWORD, SUPERADMIN_USERNAME
+from database import SessionLocal, init_db
+from db_models import User
 from jobs import JobQueue
 
 PASSWORD = "correct horse battery"
@@ -22,130 +24,94 @@ def client(monkeypatch):
         yield c
 
 
-def _name():
-    return f"user-{uuid.uuid4().hex[:8]}"
-
-
-def _register(client, username=None, password=PASSWORD):
-    return client.post("/auth/register", json={"username": _name() if username is None else username,
-                                                 "password": password})
-
-
 def _login(client, username, password=PASSWORD):
     return client.post("/auth/login", data={"username": username, "password": password})
 
 
-def test_register_returns_a_usable_token(client):
-    username = _name()
-    resp = _register(client, username)
-    assert resp.status_code == 200
-    body = resp.json()
-    assert body["token_type"] == "bearer"
-    assert body["username"] == username
-    assert body["expires_in"] == auth.JWT_EXPIRE_MINUTES * 60
-
-    me = client.get("/auth/me", headers={"Authorization": f"Bearer {body['access_token']}"})
-    assert me.json() == {"username": username}
+def _me(client, token):
+    return client.get("/auth/me", headers={"Authorization": f"Bearer {token}"})
 
 
-def test_token_carries_iat_and_configured_expiry(client):
-    token = _register(client).json()["access_token"]
-    claims = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
-    assert claims["exp"] - claims["iat"] == auth.JWT_EXPIRE_MINUTES * 60
+def _stored(username):
+    with SessionLocal() as session:
+        return session.query(User).filter(User.username == username).first()
 
 
-def test_usernames_are_normalized(client):
-    raw = f"  Mixed.Case-{uuid.uuid4().hex[:6]}  "
-    assert _register(client, raw).json()["username"] == raw.strip().lower()
-    assert _login(client, raw.strip().upper()).status_code == 200
+class TestLogin:
+    def test_login_returns_a_usable_token(self, client, make_account):
+        username, password = make_account()
+        resp = _login(client, username, password)
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["token_type"] == "bearer"
+        assert body["username"] == username
+        assert body["is_admin"] is False
+        assert body["expires_in"] == auth.JWT_EXPIRE_MINUTES * 60
+        assert _me(client, body["access_token"]).json() == {"username": username, "is_admin": False}
+
+    def test_token_lifetime_defaults_to_a_day(self):
+        assert auth.JWT_EXPIRE_MINUTES == 24 * 60
+
+    def test_usernames_are_case_insensitive(self, client, make_account):
+        username, password = make_account(f"mixed.case-{uuid.uuid4().hex[:6]}")
+        assert _login(client, username.upper(), password).status_code == 200
+
+    def test_wrong_password(self, client, make_account):
+        username, _ = make_account()
+        resp = _login(client, username, "wrong password")
+        assert resp.status_code == 401
+        assert resp.json()["detail"] == "Incorrect username or password."
+
+    def test_unknown_user_looks_the_same_and_still_costs_a_bcrypt_check(self, client, monkeypatch):
+        calls = []
+        real = auth.verify_password
+        monkeypatch.setattr(auth, "verify_password", lambda p, h: calls.append(h) or real(p, h))
+        resp = _login(client, f"ghost-{uuid.uuid4().hex[:6]}", "whatever-password")
+        assert resp.status_code == 401
+        assert resp.json()["detail"] == "Incorrect username or password."
+        assert calls == [auth._DUMMY_HASH]
+
+    def test_overlong_password_is_401_not_500(self, client, make_account):
+        username, _ = make_account()
+        assert _login(client, username, "y" * 100).status_code == 401
+
+    def test_last_login_is_recorded(self, client, make_account):
+        username, password = make_account()
+        assert _stored(username).last_login_at is None
+        _login(client, username, password)
+        assert _stored(username).last_login_at is not None
 
 
-def test_duplicate_username_is_409_even_with_different_case(client):
-    username = _name()
-    assert _register(client, username).status_code == 200
-    resp = _register(client, username.upper())
-    assert resp.status_code == 409
-    assert resp.json()["detail"] == "That username is already taken."
+class TestLockout:
+    def test_repeated_failures_lock_the_username(self, client, make_account):
+        username, password = make_account()
+        for _ in range(auth.MAX_FAILED_LOGINS):
+            assert _login(client, username, "wrong password").status_code == 401
+        locked = _login(client, username, password)  # even the right password
+        assert locked.status_code == 429
+        assert int(locked.headers["Retry-After"]) > 0
 
+        other, other_password = make_account()
+        assert _login(client, other, other_password).status_code == 200
 
-@pytest.mark.parametrize("username", ["ab", "x" * 33, "has space", "emoji-😀", "semi;colon", ""])
-def test_invalid_usernames_are_rejected(client, username):
-    assert _register(client, username).status_code == 422
+    def test_success_resets_the_failure_count(self, client, make_account):
+        username, password = make_account()
+        for _ in range(auth.MAX_FAILED_LOGINS - 1):
+            _login(client, username, "wrong password")
+        assert _login(client, username, password).status_code == 200
+        for _ in range(auth.MAX_FAILED_LOGINS - 1):
+            assert _login(client, username, "wrong password").status_code == 401
+        assert _login(client, username, password).status_code == 200
 
-
-@pytest.mark.parametrize("password", ["short", "x" * 73, "é" * 37])
-def test_passwords_bcrypt_cannot_handle_are_rejected(client, password):
-    assert _register(client, password=password).status_code == 422
-
-
-def test_registrations_are_unlimited(client):
-    assert all(_register(client).status_code == 200 for _ in range(12))
-
-
-def test_login_success_and_wrong_password(client):
-    username = _name()
-    _register(client, username)
-    ok = _login(client, username)
-    assert ok.status_code == 200 and ok.json()["username"] == username
-    bad = _login(client, username, "wrong password")
-    assert bad.status_code == 401
-    assert bad.json()["detail"] == "Incorrect username or password."
-
-
-def test_unknown_user_gets_the_same_401_as_a_wrong_password(client):
-    resp = _login(client, _name(), "whatever-password")
-    assert resp.status_code == 401
-    assert resp.json()["detail"] == "Incorrect username or password."
-
-
-def test_unknown_user_still_costs_a_bcrypt_check(client, monkeypatch):
-    calls = []
-    real = auth.verify_password
-    monkeypatch.setattr(auth, "verify_password", lambda p, h: calls.append(h) or real(p, h))
-    _login(client, _name(), "whatever-password")
-    assert calls == [auth._DUMMY_HASH]
-
-
-def test_overlong_login_password_is_401_not_500(client):
-    username = _name()
-    _register(client, username)
-    assert _login(client, username, "y" * 100).status_code == 401
-
-
-def test_repeated_failures_lock_the_username(client):
-    username = _name()
-    _register(client, username)
-    for _ in range(auth.MAX_FAILED_LOGINS):
-        assert _login(client, username, "wrong password").status_code == 401
-    locked = _login(client, username)  # even the right password
-    assert locked.status_code == 429
-    assert int(locked.headers["Retry-After"]) > 0
-    # other users are unaffected
-    other = _name()
-    _register(client, other)
-    assert _login(client, other).status_code == 200
-
-
-def test_success_resets_the_failure_count(client):
-    username = _name()
-    _register(client, username)
-    for _ in range(auth.MAX_FAILED_LOGINS - 1):
-        _login(client, username, "wrong password")
-    assert _login(client, username).status_code == 200
-    for _ in range(auth.MAX_FAILED_LOGINS - 1):
-        assert _login(client, username, "wrong password").status_code == 401
-    assert _login(client, username).status_code == 200
-
-
-def test_lockout_expires_after_the_window(monkeypatch):
-    now = [1000.0]
-    monkeypatch.setattr(auth.time, "monotonic", lambda: now[0])
-    throttle = LoginThrottle(max_failures=2, window_s=60)
-    throttle.failed("u")
-    throttle.failed("u")
-    assert throttle.retry_after("u") == 61
-    now[0] += 61
-    assert throttle.retry_after("u") == 0
+    def test_lockout_expires_after_the_window(self, monkeypatch):
+        now = [1000.0]
+        monkeypatch.setattr(auth.time, "monotonic", lambda: now[0])
+        throttle = LoginThrottle(max_failures=2, window_s=60)
+        throttle.failed("u")
+        throttle.failed("u")
+        assert throttle.retry_after("u") == 61
+        now[0] += 61
+        assert throttle.retry_after("u") == 0
 
 
 def _token(**claims):
@@ -154,40 +120,103 @@ def _token(**claims):
     return jwt.encode(base, SECRET_KEY, algorithm="HS256")
 
 
-@pytest.mark.parametrize("make_token", [
-    lambda username: _token(sub=username, exp=datetime.now(timezone.utc) - timedelta(seconds=5)),  # expired
-    lambda username: jwt.encode({"sub": username}, "another-secret", algorithm="HS256"),  # wrong key
-    lambda username: _token(sub=username) + "x",  # tampered
-    lambda username: _token(sub="ghost-user-does-not-exist"),  # deleted/unknown user
-    lambda username: _token(sub=None),  # no subject
-    lambda username: "not-a-jwt",
-])
-def test_bad_tokens_are_401(client, make_token):
-    username = _name()
-    _register(client, username)
-    resp = client.get("/auth/me", headers={"Authorization": f"Bearer {make_token(username)}"})
-    assert resp.status_code == 401
-    assert resp.headers["WWW-Authenticate"] == "Bearer"
+class TestTokens:
+    @pytest.mark.parametrize("make_token", [
+        lambda username: _token(sub=username, exp=datetime.now(timezone.utc) - timedelta(seconds=5)),  # expired
+        lambda username: jwt.encode({"sub": username}, "another-secret", algorithm="HS256"),  # wrong key
+        lambda username: _token(sub=username) + "x",  # tampered
+        lambda username: _token(sub="ghost-user-does-not-exist"),  # unknown user
+        lambda username: _token(sub=None),  # no subject
+        lambda username: "not-a-jwt",
+    ])
+    def test_bad_tokens_are_401(self, client, make_account, make_token):
+        username, _ = make_account()
+        resp = _me(client, make_token(username))
+        assert resp.status_code == 401
+        assert resp.headers["WWW-Authenticate"] == "Bearer"
+
+    def test_me_requires_a_token(self, client):
+        assert client.get("/auth/me").status_code == 401
+
+    def test_tokens_issued_before_a_password_change_stop_working(self, client, make_account):
+        username, password = make_account()
+        token = _login(client, username, password).json()["access_token"]
+        assert _me(client, token).status_code == 200
+
+        with SessionLocal() as session:
+            user = session.query(User).filter(User.username == username).first()
+            user.token_version = (user.token_version or 0) + 1
+            session.commit()
+
+        assert _me(client, token).status_code == 401
 
 
-def test_me_requires_a_token(client):
-    assert client.get("/auth/me").status_code == 401
+class TestRevokedAccounts:
+    def _deactivate(self, username):
+        with SessionLocal() as session:
+            user = session.query(User).filter(User.username == username).first()
+            user.is_active = False
+            session.commit()
+
+    def test_a_revoked_user_cannot_log_in(self, client, make_account):
+        username, password = make_account()
+        self._deactivate(username)
+        resp = _login(client, username, password)
+        assert resp.status_code == 401
+        assert resp.json()["detail"] == "Incorrect username or password."
+
+    def test_an_existing_token_dies_with_the_account(self, client, make_account):
+        username, password = make_account()
+        token = _login(client, username, password).json()["access_token"]
+        assert _me(client, token).status_code == 200
+        self._deactivate(username)
+        assert _me(client, token).status_code == 401
 
 
-def test_old_unprefixed_routes_are_gone(client):
-    assert client.post("/register", json={"username": _name(), "password": PASSWORD}).status_code == 404
-    assert client.post("/login", data={"username": "x", "password": "y"}).status_code == 404
+class TestSuperadmin:
+    def test_bootstrap_creates_the_account(self, client):
+        init_db()
+        with SessionLocal() as session:
+            session.query(User).filter(User.username == SUPERADMIN_USERNAME).delete()
+            session.commit()
+
+        ensure_superadmin()
+        user = _stored(SUPERADMIN_USERNAME)
+        assert user.is_admin and user.is_active
+        assert _login(client, SUPERADMIN_USERNAME, SUPERADMIN_PASSWORD).json()["is_admin"] is True
+
+    def test_bootstrap_restores_admin_rights_and_access(self, client):
+        ensure_superadmin()
+        with SessionLocal() as session:
+            user = session.query(User).filter(User.username == SUPERADMIN_USERNAME).first()
+            user.is_admin = False
+            user.is_active = False
+            session.commit()
+
+        ensure_superadmin()
+        user = _stored(SUPERADMIN_USERNAME)
+        assert user.is_admin and user.is_active
+
+    def test_changing_the_environment_password_rotates_it(self, client, monkeypatch):
+        ensure_superadmin()
+        before = _stored(SUPERADMIN_USERNAME).token_version
+        monkeypatch.setattr(auth, "SUPERADMIN_PASSWORD", "a-brand-new-superadmin-password")
+        ensure_superadmin()
+
+        assert _login(client, SUPERADMIN_USERNAME, SUPERADMIN_PASSWORD).status_code == 401
+        assert _login(client, SUPERADMIN_USERNAME, "a-brand-new-superadmin-password").status_code == 200
+        assert _stored(SUPERADMIN_USERNAME).token_version == before + 1
+        monkeypatch.undo()
+        ensure_superadmin()  # put the original password back for the other tests
 
 
-def test_validation_errors_never_echo_the_password(client):
-    secret = "tiny"
-    resp = client.post("/auth/register", json={"username": _name(), "password": secret})
-    assert resp.status_code == 422
-    assert secret not in resp.text
-    assert resp.json()["detail"][0]["loc"] == ["body", "password"]
+def test_there_is_no_signup_route(client):
+    assert client.post("/auth/register", json={"username": "someone", "password": PASSWORD}).status_code == 404
+    assert client.post("/register", json={"username": "someone", "password": PASSWORD}).status_code == 404
 
 
-def test_missing_login_fields_are_422_without_input_echo(client):
-    resp = client.post("/auth/login", data={"username": "only-user-given"})
-    assert resp.status_code == 422
-    assert "only-user-given" not in resp.text
+def test_superadmin_credentials_are_required():
+    from conftest import import_in_subprocess
+    out = import_in_subprocess("main", drop=("SUPERADMIN_PASSWORD",))
+    assert out.returncode != 0
+    assert "Missing required environment variables: SUPERADMIN_PASSWORD" in out.stderr

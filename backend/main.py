@@ -11,7 +11,8 @@ from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
-from auth import router as auth_router, get_current_user
+from admin import router as admin_router
+from auth import ensure_superadmin, router as auth_router, get_current_user
 from config import MAX_PENDING_JOBS, JOB_RESULT_TTL_S, MAX_UPLOAD_BYTES
 from database import get_db, init_db
 from db_models import OptimizationRunLog, User
@@ -29,7 +30,8 @@ job_queue = JobQueue(max_pending=MAX_PENDING_JOBS, result_ttl_s=JOB_RESULT_TTL_S
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    init_db()
+    if init_db():
+        ensure_superadmin()
     job_queue.start()
     yield
 
@@ -37,6 +39,7 @@ async def lifespan(_app: FastAPI):
 # No CORS middleware: only server-side callers (the Vercel API routes, via the Worker) reach this API.
 app = FastAPI(lifespan=lifespan)
 app.include_router(auth_router)
+app.include_router(admin_router)
 
 
 @app.exception_handler(RequestValidationError)
