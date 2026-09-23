@@ -234,7 +234,7 @@ The order matters. Doing a step early breaks every call.
 | Item | Status |
 |---|---|
 | Velora repo baseline, APKs removed, ignore/attribute rules | Done |
-| `velora-vm-hub` repo (compose, OSRM prep script) | Done locally; remote to be added |
+| `velora-vm-hub` repo (compose, OSRM prep script) | Done, pushed to `manan-vala/velora-vm-hub` |
 | Backend image workflow | Committed; the first real run happens on push |
 | Vercel API proxy + build targets | Done (commit `6f4318b`) |
 | New Worker code | Written; not deployed |
@@ -244,7 +244,7 @@ The order matters. Doing a step early breaks every call.
 | VPC Service switched 8001 → 8010 | Not done (step 6) |
 | Android app build tested on a device (confirm origin `https://localhost`) | Deferred; web first |
 | User login: JWT required on `/process-routes`, login screen, session cookie in the Vercel routes, per-user jobs and logs | Done and tested locally |
-| Superadmin-managed accounts (no signup) and the `/admin` dashboard | Done and tested locally; needs `SUPERADMIN_USERNAME` / `SUPERADMIN_PASSWORD` in the hub `.env` |
+| Superadmin-managed accounts (no signup) and the `/admin` dashboard | Done and tested locally. The hub compose passes `SUPERADMIN_USERNAME` / `SUPERADMIN_PASSWORD` through to the container; both must be set in the hub's `.env` |
 | Worker prefixes `["/process-routes", "/auth"]` | Done |
 | Caddy on the VM routing path prefixes to several backends | Only needed once a second backend exists |
 
