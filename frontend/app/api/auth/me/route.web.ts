@@ -23,7 +23,10 @@ export async function GET(request: Request) {
   if (!upstream.ok || typeof body?.username !== "string") {
     return jsonError(request, upstream.ok ? 502 : upstream.status, errorMessage(body, "Could not load your session."));
   }
-  return Response.json({ user: { username: body.username } }, { status: 200, headers });
+  return Response.json(
+    { user: { username: body.username, is_admin: body.is_admin === true } },
+    { status: 200, headers },
+  );
 }
 
 export function OPTIONS(request: Request) {
