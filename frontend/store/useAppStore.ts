@@ -23,11 +23,14 @@ interface AppState {
   activeEmployeeId: string | null;
   sidebarOpen: boolean;
   mapTheme: string;
+  /** The bottom legend bar is open (other bottom widgets move up to make room). */
+  legendsExpanded: boolean;
 
   selectVehicle: (id: string | null) => void;
   selectEmployee: (id: string | null) => void;
   setSidebarOpen: (open: boolean) => void;
   setMapTheme: (theme: string) => void;
+  setLegendsExpanded: (expanded: boolean) => void;
 
   // --- MAP CONTROL (Command Pattern) ---
   // The map component listens to this state to know where to fly
@@ -69,6 +72,7 @@ export const useAppStore = create<AppState>((set) => ({
   simulationTargetId: null,
   zoom: 13,
   mapTheme: "whiteMap",
+  legendsExpanded: false,
   mapInstance: null,
   layers: {
     office: true,
@@ -115,6 +119,7 @@ export const useAppStore = create<AppState>((set) => ({
   selectEmployee: (id) => set({ activeEmployeeId: id, activeVehicleId: null }),
   setSidebarOpen: (open) => set({ sidebarOpen: open }),
   setMapTheme: (theme) => set({ mapTheme: theme }),
+  setLegendsExpanded: (expanded) => set({ legendsExpanded: expanded }),
 
   setMapFocus: (focus) => set({ mapFocus: focus }),
   triggerSimulation: (id) => set({ simulationTargetId: id }),

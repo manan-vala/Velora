@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import { useAppStore } from "@/store/useAppStore";
 
 function ToggleSwitch({
@@ -48,7 +47,8 @@ function ToggleSwitch({
 
 export default function BottomControlBar() {
   // const { isSimulating, onStopSim } = props;
-  const [expanded, setExpanded] = useState(false);
+  const expanded = useAppStore((state) => state.legendsExpanded);
+  const setExpanded = useAppStore((state) => state.setLegendsExpanded);
   const layers = useAppStore((state) => state.layers);
   const setLayer = useAppStore((state) => state.setLayer);
 

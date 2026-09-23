@@ -36,6 +36,7 @@
 - The TaxiMeter's "time" is animation wall-clock seconds, not route time; distance sums decoded polyline points, including the injected straight endpoint segments.
 - **Fix:** deduplicate office markers, move the taxi marker into its own small component (or update an imperative `google.maps.Marker`), derive meter values from `route_sequence`.
 - **Update (MapLibre migration):** markers are now GPU circle layers fed by one GeoJSON source per type, so duplicate office points and the 100 ms simulation updates only re-upload small sources instead of re-rendering marker components. Routes are a declarative GeoJSON layer, which removes the `mapRef.current` race. The TaxiMeter semantics are unchanged.
+- **Update (route playback):** the taxi simulation and TaxiMeter are gone, replaced by the route playback bar. Its animation runs in `requestAnimationFrame` and updates the marker, trail and progress bar outside React, re-rendering only at stops. Its log uses the scheduled arrival times from `route_sequence`.
 
 ## Low severity
 

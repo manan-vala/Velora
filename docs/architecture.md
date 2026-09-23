@@ -64,7 +64,7 @@ PostgreSQL — optimization_run_logs (capped at 1000 rows), users (JWT auth)
 | Server state | `hooks/useOptimization.ts`, `hooks/useMobileOptimization.ts` | React Query mutation to start a job + polling query |
 | API | `lib/api.ts` | `startOptimizationJob`, `checkOptimizationStatus` |
 | Parsing / export | `lib/excel-parser.ts`, `lib/export-excel.ts` | ExcelJS parse (fuzzy sheet-name matching, time normalization) and result export |
-| Map | `components/map/MapInterface.tsx`, `components/mobile/MobileMap.tsx`, `components/map/base/` | MapLibre + OpenFreeMap tiles in our own style (`lib/map/style.ts`); markers and routes as GeoJSON layers; taxi simulation via `setInterval` |
+| Map | `components/map/MapInterface.tsx`, `components/mobile/MobileMap.tsx`, `components/map/base/` | MapLibre + OpenFreeMap tiles in our own style (`lib/map/style.ts`); markers and routes as GeoJSON layers; route playback via `requestAnimationFrame` (`hooks/useRoutePlayback.ts`, `lib/map/playback.ts`) |
 | Routing | `app/providers/DeviceRoutingProvider.tsx` | UA / width based redirect between `/` and `/mobile` |
 | Mobile packaging | `capacitor.config.ts`, `android/` | Capacitor Android wrapper around the static export (`output: "export"`) |
 

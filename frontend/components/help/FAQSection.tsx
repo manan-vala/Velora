@@ -71,6 +71,11 @@ export default function FAQSection() {
         "After uploading your dataset, a 'Optimize Routes' button becomes available. Clicking it triggers our backend algorithm to compute the most efficient routes considering vehicle capacities, employee preferences, and priorities.",
     },
     {
+      question: "How do I watch a vehicle drive its route?",
+      answer:
+        "Once routes are optimized, a bar appears at the bottom of the map. Pick a vehicle and press play: it drives its route while the bar lists each pickup and drop-off as it happens. You can pause, replay or stop from the same bar.",
+    },
+    {
       question: "What do the different colored markers mean?",
       answer: (
         <div className="space-y-3">
@@ -92,8 +97,8 @@ export default function FAQSection() {
             },
             {
               dot: "bg-[#777]",
-              label: "Orange",
-              desc: "Moving taxi during route simulation",
+              label: "Car icon",
+              desc: "A vehicle driving its route during playback",
             },
           ].map(({ dot, label, desc }) => (
             <div key={label} className="flex items-center gap-3">

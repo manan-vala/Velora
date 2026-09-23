@@ -86,10 +86,11 @@ from the base-ui components in `components/map/ui`). `/mobileauth/login` renders
 Both maps (`components/map/MapInterface.tsx` on desktop, `components/mobile/MobileMap.tsx` on mobile) are built on `components/map/base/BaseMap.tsx`, a MapLibre map drawing [OpenFreeMap](https://openfreemap.org) vector tiles. OpenFreeMap is free with no API key, no usage limits and commercial use allowed; the only requirement is the attribution shown in the corner of the map.
 
 - **Basemap style** — `lib/map/style.ts` recolours a pinned snapshot of OpenFreeMap's Liberty style (`lib/map/openfreemap-liberty.json`) with a light and a dark palette, for a calm Google/Protomaps-like look: light land, white roads, green parks, fewer POIs. To change the look, edit the `LIGHT`/`DARK` palettes; to explore layers, open the snapshot in [Maputnik](https://maputnik.github.io/editor). Labels use English or transliterated names because MapLibre can't draw Kannada script.
-- **Markers** — employees, vehicles, offices and the simulated taxi are GPU-drawn circle layers (`components/map/base/layers.tsx`), one GeoJSON source each, sized by zoom and enlarged when selected. Clicking one opens a MapLibre popup.
+- **Markers** — employees, vehicles and offices are GPU-drawn circle layers (`components/map/base/layers.tsx`), one GeoJSON source each, sized by zoom and enlarged when selected. Clicking one opens a MapLibre popup.
 - **Routes** — optimized routes are a GeoJSON line layer: each vehicle's decoded geometry in its own colour over a white casing, drawn beneath the markers. They are declarative, so they appear whenever results exist and survive a light/dark switch.
 - **Camera** — the store's `mapFocus` command becomes `flyTo`; recentring uses `fitBounds` over the office, pickups and vehicles (`lib/map/geo.ts`).
-- **Simulation engine** — when triggered, the map decodes precomputed route geometries (encoded polylines from the backend), then runs a `setInterval` loop to animate a taxi marker along the decoded path. A live `TaxiMeter` widget updates dynamically to reflect elapsed time and distance.
+- **Route playback** — the bar at the bottom centre (`components/map/MapWidgets/RoutePlaybackBar.tsx`) picks a vehicle and plays its optimized route. `lib/map/playback.ts` turns the route into legs (one per backend segment, with a straight line where the router had no geometry), and `hooks/useRoutePlayback.ts` drives a `requestAnimationFrame` loop that moves a DOM marker, extends the current leg's trail and fills the progress bar directly, so React only re-renders when the vehicle reaches or leaves a stop. Picked-up employees fade, the next pickup is highlighted, and other routes dim while it plays.
+  - **Tuning** — the constants at the top of `lib/map/playback.ts`: `PLAYBACK_SPEEDUP` (how many times faster than real life; each vehicle drives at its own `avg_speed_kmph` × this), `STOP_PAUSE_MS` (wait at each stop), `MIN_LEG_MS` (shortest leg on screen) and `EASE_MS` (speed-up and slow-down at stops).
 
 ---
 
@@ -98,7 +99,7 @@ Both maps (`components/map/MapInterface.tsx` on desktop, `components/mobile/Mobi
 - **Excel data upload** — drag-and-drop or file-picker upload of `.xlsx`/`.xls` files. The parser automatically identifies Employee, Vehicle, Baseline, and Metadata sheets.
 - **Interactive map** — click any marker to view detailed information. Vehicles display capacity and speed; employees display priority and ride-sharing preferences.
 - **Route optimization** — one-click trigger that sends data to the backend engine, with live status polling and automatic result display.
-- **Route simulation** — animated taxi overlay with a real-time taximeter showing time and distance traveled.
+- **Route playback** — pick a vehicle and press play to watch it drive its optimized route, with a live log of each pickup and office drop-off.
 - **Layer controls** — toggle visibility of employee markers, vehicle markers, office drop-offs, and route paths independently.
 - **Statistics dashboard** — post-optimization analytics including total distance, time, active stops, estimated costs, and baseline comparison percentages.
 - **Excel export** — download optimization results as a formatted `.xlsx` file containing Vehicle Summary and Route Sequence sheets.

@@ -97,3 +97,56 @@ body {
   font-size: 18px;
   color: #64748b;
 }
+
+/* Route playback: the moving vehicle dot, with a soft ring pulsing out while it drives */
+.velora-vehicle-dot {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 9999px;
+  background: var(--dot);
+  color: #fff;
+  border: 3px solid #fff;
+  box-shadow: 0 3px 12px rgb(15 23 42 / 0.35);
+}
+.velora-vehicle-dot::before {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  z-index: -1;
+  border-radius: inherit;
+  background: var(--dot);
+  opacity: 0;
+}
+.velora-vehicle-dot[data-moving="true"]::before {
+  animation: velora-ping 1.6s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+@keyframes velora-ping {
+  0% { transform: scale(1); opacity: 0.45; }
+  80%, 100% { transform: scale(2.6); opacity: 0; }
+}
+
+/* Route playback bar: entrance, new log rows and icon swaps */
+.velora-rise { animation: velora-rise 0.35s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.velora-row-in { animation: velora-row-in 0.35s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.velora-pop { animation: velora-pop 0.3s cubic-bezier(0.3, 1.4, 0.5, 1) both; }
+@keyframes velora-rise {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes velora-row-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes velora-pop {
+  from { opacity: 0; transform: scale(0.5); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .velora-rise, .velora-row-in, .velora-pop, .velora-vehicle-dot::before { animation: none; }
+}
+
+/* Thin, unobtrusive scrollbar for small scrolling panels */
+.velora-scroll { scrollbar-width: thin; scrollbar-color: rgb(148 163 184 / 0.5) transparent; }

@@ -92,9 +92,9 @@ export default function HelpPage() {
     },
     {
       icon: PlayCircle,
-      title: "Route Simulation",
+      title: "Route Playback",
       description:
-        "Visualize the optimized path with a moving taxi overlay and dynamic taximeter showing time and distance covered.",
+        "Pick a vehicle in the bar at the bottom of the map and press play to watch it drive its optimized route, with a live log of every pickup and drop-off.",
     },
     {
       icon: Download,

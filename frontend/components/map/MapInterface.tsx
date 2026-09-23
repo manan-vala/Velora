@@ -1,16 +1,18 @@
 "use client";
 
-import { useState, useMemo, useEffect, useRef } from "react";
-import { Popup, type MapLayerMouseEvent } from "react-map-gl/maplibre";
+import { useState, useMemo, useEffect, useRef, type CSSProperties } from "react";
+import { Marker, Popup, type MapLayerMouseEvent } from "react-map-gl/maplibre";
 import type { Map as MaplibreMap } from "maplibre-gl";
 import { useAppStore } from "@/store/useAppStore";
-import { distanceMeters, routePath, type LatLng } from "@/lib/map/geo";
+import { distanceMeters, optimizedVehiclesOf, ROUTE_COLORS } from "@/lib/map/geo";
+import { buildJourney } from "@/lib/map/playback";
+import { useRoutePlayback } from "@/hooks/useRoutePlayback";
 import BaseMap from "./base/BaseMap";
-import { EMPLOYEE_LAYER, PointLayers, RouteLayers, VEHICLE_LAYER } from "./base/layers";
+import { EMPLOYEE_LAYER, PlaybackLayers, PointLayers, RouteLayers, VEHICLE_LAYER } from "./base/layers";
 import LeftSidebar from "./MapWidgets/LeftSideBar";
 import ZoomControls from "./MapWidgets/ZoomControls";
 import BottomControlBar from "./MapWidgets/BottomControlBar";
-import TaxiMeter from "./TaxiMeter";
+import RoutePlaybackBar from "./MapWidgets/RoutePlaybackBar";
 import { Car, User, Users, Gauge, Star, Tag } from "lucide-react";
 
 const FOCUS_ZOOM = 17;
@@ -36,7 +38,8 @@ export default function MapInterface({
 
   const activeVehicleId = useAppStore((state) => state.activeVehicleId);
   const mapTheme = useAppStore((state) => state.mapTheme);
-  const triggerSimulation = useAppStore((state) => state.triggerSimulation);
+  const mapInstance = useAppStore((state) => state.mapInstance);
+  const legendsExpanded = useAppStore((state) => state.legendsExpanded);
 
   // Local State for popups (Decoupled from global active selection for routes)
   const [clickedVehicleId, setClickedVehicleId] = useState<string | null>(null);
@@ -54,48 +57,11 @@ export default function MapInterface({
     [parsedData?.vehicles],
   );
 
-  // Simulation state — driven by precomputed backend route_geometry
-  const [simPath, setSimPath] = useState<LatLng[] | null>(null);
-  const [movingTaxiPos, setMovingTaxiPos] = useState<LatLng | null>(null);
-  const [simStats, setSimStats] = useState({ distance: 0, time: 0 });
-  const [isSimulating, setIsSimulating] = useState(false);
-
   const center = useMemo(() => {
     if (employees.length > 0)
       return { lat: employees[0].pickup_lat, lng: employees[0].pickup_lng };
     return undefined;
   }, [employees]);
-
-  // Simulation animation loop — animates taxi along precomputed simPath
-  useEffect(() => {
-    if (!simPath || simPath.length < 2 || !isSimulating) return;
-
-    let currentIndex = 0;
-    let totalDist = 0;
-    const startTimestamp = Date.now();
-
-    const interval = setInterval(() => {
-      if (currentIndex >= simPath.length - 1) {
-        clearInterval(interval);
-        setIsSimulating(false);
-        return;
-      }
-
-      const currentPoint = simPath[currentIndex];
-      const nextPoint = simPath[currentIndex + 1];
-
-      totalDist += distanceMeters(currentPoint, nextPoint);
-      setMovingTaxiPos({ lat: nextPoint.lat, lng: nextPoint.lng });
-      setSimStats({
-        distance: totalDist,
-        time: (Date.now() - startTimestamp) / 1000,
-      });
-
-      currentIndex++;
-    }, 100);
-
-    return () => clearInterval(interval);
-  }, [simPath, isSimulating]);
 
   // Bug #3 fix: Consume and reset mapFocus so the same location can re-trigger
   useEffect(() => {
@@ -120,35 +86,55 @@ export default function MapInterface({
     }
   }, [mapFocus]);
 
-  // Bug #5 fix: Consume and reset simulationTargetId
-  // Bug #4 fix: Use precomputed backend route_geometry instead of Google Directions API
-  const simulationTargetId = useAppStore((state) => state.simulationTargetId);
+  // --- ROUTE PLAYBACK ---
+  const routes = useMemo(
+    () => optimizedVehiclesOf(optimizationResult),
+    [optimizationResult],
+  );
+  const [playbackVehicleId, setPlaybackVehicleId] = useState<string | null>(
+    null,
+  );
+  const selectedPlaybackId = routes.some(
+    (r) => r.vehicle_id === playbackVehicleId,
+  )
+    ? playbackVehicleId
+    : (routes[0]?.vehicle_id ?? null);
 
-  useEffect(() => {
-    if (!simulationTargetId) return;
-
-    // Consume and reset so the same vehicle can re-trigger
-    const targetId = simulationTargetId;
-    triggerSimulation(null);
-
-    // Simulation only available post-optimization
-    if (!optimizationResult) return;
-
-    const optimizedVehicle = optimizationResult.vehicles.find(
-      (v) => v.vehicle_id === targetId,
+  const journey = useMemo(() => {
+    const index = routes.findIndex((r) => r.vehicle_id === selectedPlaybackId);
+    if (index < 0) return null;
+    return buildJourney(
+      routes[index],
+      ROUTE_COLORS[index % ROUTE_COLORS.length],
+      employees,
+      vehicles,
     );
-    if (!optimizedVehicle) return;
+  }, [routes, selectedPlaybackId, employees, vehicles]);
 
-    // Decode the precomputed backend geometry into a LatLng path
-    const path = routePath(optimizedVehicle);
-    if (path.length < 2) return;
+  const {
+    view: playbackView,
+    play,
+    pause,
+    stop,
+    markerRef,
+    progressRef,
+    distanceRef,
+  } = useRoutePlayback(mapInstance, journey);
+  const playbackOn = playbackView.status !== "idle" && journey !== null;
 
-    // Reset sim state and start
-    setSimStats({ distance: 0, time: 0 });
-    setMovingTaxiPos(null);
-    setSimPath(path);
-    setIsSimulating(true);
-  }, [simulationTargetId]);
+  // Employees already in (or dropped by) the vehicle fade out; the next pickup is highlighted
+  const { pickedUp, nextPickup } = useMemo(() => {
+    const picked = new Set<string>();
+    if (!playbackOn || !journey) return { pickedUp: picked, nextPickup: null };
+    const reached = playbackView.leg + (playbackView.arrived ? 1 : 0);
+    journey.legs.slice(0, reached).forEach((leg) => {
+      if (leg.kind === "pickup") picked.add(leg.to);
+    });
+    const current = journey.legs[playbackView.leg];
+    const next =
+      !playbackView.arrived && current?.kind === "pickup" ? current.to : null;
+    return { pickedUp: picked, nextPickup: next };
+  }, [playbackOn, journey, playbackView.leg, playbackView.arrived]);
 
   // --- MAP POINTS (GeoJSON circle layers) ---
   const officePoints = useMemo(
@@ -169,27 +155,30 @@ export default function MapInterface({
             id: emp.employee_id,
             lat: emp.pickup_lat,
             lng: emp.pickup_lng,
-            active: emp.employee_id === clickedEmployeeId,
+            active:
+              emp.employee_id === clickedEmployeeId ||
+              emp.employee_id === nextPickup,
+            muted: pickedUp.has(emp.employee_id),
           }))
         : [],
-    [employees, layers.employees, clickedEmployeeId],
+    [employees, layers.employees, clickedEmployeeId, nextPickup, pickedUp],
   );
   const vehiclePoints = useMemo(
     () =>
       layers.vehicles
-        ? vehicles.map((veh) => ({
-            id: veh.vehicle_id,
-            lat: veh.current_lat,
-            lng: veh.current_lng,
-            active: veh.vehicle_id === activeVehicleId, // Highlight if active in stats
-          }))
+        ? vehicles
+            // The vehicle being played back is drawn by its own moving marker
+            .filter(
+              (veh) => !(playbackOn && veh.vehicle_id === journey?.vehicleId),
+            )
+            .map((veh) => ({
+              id: veh.vehicle_id,
+              lat: veh.current_lat,
+              lng: veh.current_lng,
+              active: veh.vehicle_id === activeVehicleId, // Highlight if active in stats
+            }))
         : [],
-    [vehicles, layers.vehicles, activeVehicleId],
-  );
-  const taxiPoint = useMemo(
-    () =>
-      movingTaxiPos && layers.vehicles ? { id: "taxi", ...movingTaxiPos } : null,
-    [movingTaxiPos, layers.vehicles],
+    [vehicles, layers.vehicles, activeVehicleId, playbackOn, journey],
   );
 
   const handleMapClick = (event: MapLayerMouseEvent) => {
@@ -234,13 +223,38 @@ export default function MapInterface({
             offices={officePoints}
             employees={employeePoints}
             vehicles={vehiclePoints}
-            taxi={taxiPoint}
           />
-          {layers.routes && optimizationResult && (
+          {layers.routes && routes.length > 0 && (
             <RouteLayers
-              vehicles={optimizationResult.vehicles}
+              vehicles={routes}
               activeVehicleId={activeVehicleId}
+              excludeVehicleId={playbackOn ? journey?.vehicleId : null}
+              dimmed={playbackOn}
             />
+          )}
+          {playbackOn && journey && (
+            <PlaybackLayers
+              journey={journey}
+              done={playbackView.done}
+              head={playbackView.head}
+            />
+          )}
+          {playbackOn && journey && playbackView.position && (
+            <Marker
+              ref={markerRef}
+              longitude={playbackView.position.lng}
+              latitude={playbackView.position.lat}
+              anchor="center"
+            >
+              <div
+                className="velora-vehicle-dot"
+                style={{ "--dot": journey.color } as CSSProperties}
+                data-moving={playbackView.status === "playing"}
+                title={journey.vehicleId}
+              >
+                <Car className="w-3 h-3" strokeWidth={2.75} />
+              </div>
+            </Marker>
           )}
 
           {/* Vehicle popup (Independent of Stats Menu filtering) */}
@@ -365,10 +379,20 @@ export default function MapInterface({
 
           <BottomControlBar />
 
-          {isSimulating && (
-            <div className="absolute top-24 right-6 z-30">
-              <TaxiMeter distance={simStats.distance} time={simStats.time} />
-            </div>
+          {routes.length > 0 && (
+            <RoutePlaybackBar
+              routes={routes}
+              selectedId={selectedPlaybackId}
+              onSelect={setPlaybackVehicleId}
+              journey={journey}
+              view={playbackView}
+              onPlay={play}
+              onPause={pause}
+              onStop={stop}
+              progressRef={progressRef}
+              distanceRef={distanceRef}
+              lifted={legendsExpanded}
+            />
           )}
 
           <ZoomControls />

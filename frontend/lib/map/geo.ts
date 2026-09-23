@@ -64,13 +64,18 @@ export function routePath(vehicle: OptimizedRoute): LatLng[] {
   return vehicle.route_geometry.flatMap((segment) => decodePolyline(segment.geometry));
 }
 
-/** One coloured line per vehicle; colours follow the vehicle's position in the result. */
+/**
+ * One coloured line per vehicle; colours follow the vehicle's position in the result.
+ * `activeVehicleId` keeps only that vehicle, `excludeVehicleId` leaves one out.
+ */
 export function routesToGeoJSON(
   vehicles: OptimizedRoute[],
   activeVehicleId?: string | null,
+  excludeVehicleId?: string | null,
 ): FeatureCollection<LineString, { vehicleId: string; color: string }> {
   const features = vehicles.flatMap((vehicle, index) => {
     if (activeVehicleId && vehicle.vehicle_id !== activeVehicleId) return [];
+    if (excludeVehicleId && vehicle.vehicle_id === excludeVehicleId) return [];
     const path = routePath(vehicle);
     if (path.length < 2) return [];
     return [
@@ -87,16 +92,20 @@ export function routesToGeoJSON(
 export interface MapPoint extends LatLng {
   id: string;
   active?: boolean;
+  /** Drawn faded, e.g. an employee already picked up during route playback. */
+  muted?: boolean;
 }
 
-export function pointsToGeoJSON(points: MapPoint[]): FeatureCollection<Point, { id: string; active: boolean }> {
+export function pointsToGeoJSON(
+  points: MapPoint[],
+): FeatureCollection<Point, { id: string; active: boolean; muted: boolean }> {
   return {
     type: "FeatureCollection",
     features: points
       .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng))
       .map((p) => ({
         type: "Feature" as const,
-        properties: { id: p.id, active: Boolean(p.active) },
+        properties: { id: p.id, active: Boolean(p.active), muted: Boolean(p.muted) },
         geometry: { type: "Point" as const, coordinates: [p.lng, p.lat] },
       })),
   };
