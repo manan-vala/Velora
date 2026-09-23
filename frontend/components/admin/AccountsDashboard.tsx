@@ -110,7 +110,7 @@ export default function AccountsDashboard() {
   });
 
   const busy = create.isPending || resetPassword.isPending || access.isPending || remove.isPending;
-  const error = create.error ?? resetPassword.error ?? access.error ?? remove.error;
+  const error = accounts.error ?? create.error ?? resetPassword.error ?? access.error ?? remove.error;
 
   return (
     <div className="auth-theme min-h-screen px-4 py-10">
