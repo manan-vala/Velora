@@ -3,49 +3,19 @@
 import { Plus, Minus } from "lucide-react";
 import Image from "next/image";
 import { useAppStore } from "@/store/useAppStore";
-import { calculateMapCenter } from "@/lib/map-utils";
+import { fitMapToData } from "@/lib/map/geo";
 
 export default function ZoomControls() {
   const mapInstance = useAppStore((s) => s.mapInstance);
-  const setZoom = useAppStore((s) => s.setZoom);
   const parsedData = useAppStore((s) => s.parsedData);
 
-  const handleZoomIn = () => {
-    if (mapInstance) {
-      const currentZoom = mapInstance.getZoom();
-      mapInstance.setZoom(currentZoom! + 1);
-      setZoom(currentZoom! + 1);
-    }
-  };
+  const handleZoomIn = () => mapInstance?.zoomIn();
 
-  const handleZoomOut = () => {
-    if (mapInstance) {
-      const currentZoom = mapInstance.getZoom();
-      mapInstance.setZoom(currentZoom! - 1);
-      setZoom(currentZoom! - 1);
-    }
-  };
+  const handleZoomOut = () => mapInstance?.zoomOut();
 
   const handleCompass = () => {
     if (!mapInstance || !parsedData) return;
-
-    const result = calculateMapCenter(
-      parsedData?.employees || [],
-      parsedData?.vehicles || [],
-    );
-
-    if (result) {
-      const { lat, lng, zoom } = result;
-      mapInstance.panTo({ lat, lng });
-      mapInstance.setZoom(zoom);
-      setZoom(zoom);
-    }
-    // If no data, maybe just re-center to default?
-    else {
-      mapInstance.panTo({ lat: 12.9716, lng: 77.5946 });
-      mapInstance.setZoom(13);
-      setZoom(13);
-    }
+    fitMapToData(mapInstance, parsedData.employees || [], parsedData.vehicles || []);
   };
 
   return (
