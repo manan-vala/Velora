@@ -139,29 +139,29 @@ export default function EloraSidebarLayout() {
     }, [searchType, searchTerm, employees, vehicles]);
 
     return (
-      <div className="p-7">
-        <h2 className="text-xl text-[#000000] font-bold mb-5 px-1">
+      <div className="p-5 w-80">
+        <h2 className="text-lg text-[#000000] font-bold mb-3">
           Search Type
         </h2>
-        <div className="bg-slate-100 p-1 rounded-2xl flex mb-6">
+        <div className="bg-slate-100 p-1 rounded-xl flex mb-4">
           <button
             onClick={() => setSearchType("employees")}
-            className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-sm font-medium transition-all cursor-pointer ${searchType === "employees" ? "bg-white shadow-sm text-slate-900 font-bold" : "text-slate-400"}`}
+            className={`flex-1 flex items-center justify-center gap-2 py-1.5 rounded-lg text-sm font-medium transition-all cursor-pointer ${searchType === "employees" ? "bg-white shadow-sm text-slate-900 font-bold" : "text-slate-400"}`}
           >
             <Users className="w-4 h-4" /> Employees
           </button>
           <button
             onClick={() => setSearchType("vehicles")}
-            className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-sm font-medium transition-all cursor-pointer ${searchType === "vehicles" ? "bg-white shadow-sm text-slate-900 font-bold" : "text-slate-400"}`}
+            className={`flex-1 flex items-center justify-center gap-2 py-1.5 rounded-lg text-sm font-medium transition-all cursor-pointer ${searchType === "vehicles" ? "bg-white shadow-sm text-slate-900 font-bold" : "text-slate-400"}`}
           >
             <Car className="w-4 h-4" /> Vehicles
           </button>
         </div>
-        <div className="border border-slate-100 rounded-[28px] p-5 bg-white">
-          <h3 className="text-lg font-bold mb-1 text-slate-800">
+        <div className="border border-slate-100 rounded-2xl p-4 bg-white">
+          <h3 className="text-base font-bold mb-0.5 text-slate-800">
             Find {searchType === "employees" ? "Employee" : "Vehicle"}
           </h3>
-          <p className="text-slate-400 text-xs mb-4">
+          <p className="text-slate-400 text-xs mb-3">
             Locate a {searchType === "employees" ? "person" : "vehicle"} on the
             map
           </p>
@@ -170,12 +170,12 @@ export default function EloraSidebarLayout() {
             placeholder={`Search ${searchType === "employees" ? "Employee" : "Vehicle"}`}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full text-[#8F8F8F] bg-slate-50 border border-slate-100 rounded-xl px-4 py-2.5 mb-6 text-sm outline-none"
+            className="w-full text-[#8F8F8F] bg-slate-50 border border-slate-100 rounded-lg px-3 py-2 mb-2 text-sm outline-none focus:border-slate-300"
           />
           {/* <h4 className="text-[#5E5E5E] font-bold mb-4 uppercase text-[10px] tracking-widest">
             Suggested
           </h4> */}
-          <div className="flex flex-col gap-4">
+          <div className="flex flex-col">
             {filteredItems.map((item) => {
               const id =
                 searchType === "employees"
@@ -186,8 +186,11 @@ export default function EloraSidebarLayout() {
                 searchType === "employees" ? "bg-blue-600" : "bg-green-500";
 
               return (
-                <div key={id} className="flex items-center justify-between">
-                  <span className="font-bold text-slate-700">{id}</span>
+                <div
+                  key={id}
+                  className="flex items-center justify-between px-1 py-1.5 border-b border-slate-50 last:border-b-0"
+                >
+                  <span className="text-sm font-bold text-slate-700">{id}</span>
                   <button
                     onClick={() => {
                       if (searchType === "employees") {
@@ -208,7 +211,7 @@ export default function EloraSidebarLayout() {
                         );
                       }
                     }}
-                    className="flex items-center gap-2 px-4 py-1.5 border border-slate-100 rounded-full text-xs font-bold text-slate-700 hover:bg-slate-50 cursor-pointer"
+                    className="flex items-center gap-2 px-3 py-1 border border-slate-100 rounded-full text-xs font-bold text-slate-700 hover:bg-slate-50 cursor-pointer"
                   >
                     <div className={`w-2 h-2 rounded-full ${color}`} /> View
                   </button>
@@ -229,8 +232,8 @@ export default function EloraSidebarLayout() {
   const StatsMenu = () => {
     if (!optimizationResult) {
       return (
-        <div className="p-7 min-w-[320px]">
-          <h2 className="text-xl font-bold text-[#000000] mb-4">
+        <div className="p-5 w-80">
+          <h2 className="text-lg font-bold text-[#000000] mb-2">
             Route Statistics
           </h2>
           <p className="text-slate-500 text-sm">
@@ -271,16 +274,16 @@ export default function EloraSidebarLayout() {
     });
 
     return (
-      <div className="p-7 min-w-[320px]">
-        <div className="flex justify-between items-center mb-8 gap-2">
-          <div className="flex items-center gap-3">
+      <div className="p-5 w-80">
+        <div className="flex justify-between items-center mb-4 gap-2">
+          <div className="flex items-center gap-2.5">
             <div className="w-3 h-3 rounded-full bg-blue-600" />
-            <h2 className="text-xl font-bold text-[#000000]">
+            <h2 className="text-lg font-bold text-[#000000]">
               Selected Vehicle
             </h2>
           </div>
           <select
-            className="bg-slate-50 px-2 py-1.5 rounded-xl text-[#000000] font-bold text-sm border border-slate-200 cursor-pointer outline-none focus:ring-2 focus:ring-blue-500 max-w-[120px]"
+            className="bg-slate-50 px-2 py-1 rounded-lg text-[#000000] font-bold text-sm border border-slate-200 cursor-pointer outline-none focus:ring-2 focus:ring-blue-500 max-w-[120px]"
             value={activeVehicleId || ""}
             onChange={(e) => {
               const val = e.target.value;
@@ -295,41 +298,41 @@ export default function EloraSidebarLayout() {
             ))}
           </select>
         </div>
-        <div className="grid grid-cols-2 gap-y-6 mb-8 px-1">
+        <div className="grid grid-cols-2 gap-x-4 gap-y-3 mb-4 p-3 rounded-xl bg-slate-50">
           <div>
-            <p className="text-[#000000] text-xs mb-1">Distance</p>
-            <p className="text-xl font-bold text-neutral-950">
+            <p className="text-slate-500 text-xs mb-0.5">Distance</p>
+            <p className="text-lg font-bold text-neutral-950 leading-tight">
               {totalDistance.toFixed(1)} km
             </p>
           </div>
           <div>
-            <p className="text-[#000000] text-xs mb-1">Time</p>
-            <p className="text-xl font-bold text-neutral-950">
+            <p className="text-slate-500 text-xs mb-0.5">Time</p>
+            <p className="text-lg font-bold text-neutral-950 leading-tight">
               {Math.round(totalTime)} min
             </p>
           </div>
           <div>
-            <p className="text-[#000000] text-xs mb-1">Stops</p>
-            <p className="text-xl font-bold text-neutral-950">{totalStops}</p>
+            <p className="text-slate-500 text-xs mb-0.5">Stops</p>
+            <p className="text-lg font-bold text-neutral-950 leading-tight">{totalStops}</p>
           </div>
           <div>
-            <p className="text-[#000000] text-xs mb-1">Fuel Cost</p>
-            <p className="text-xl font-bold text-neutral-950">
+            <p className="text-slate-500 text-xs mb-0.5">Fuel Cost</p>
+            <p className="text-lg font-bold text-neutral-950 leading-tight">
               ₹ {totalCost.toFixed(2)}
             </p>
           </div>
         </div>
-        <h3 className="font-bold text-[#5E5E5E] text-sm mb-4">
+        <h3 className="font-bold text-[#5E5E5E] text-sm mb-2">
           Employees & Pickup
         </h3>
-        <div className="flex flex-col gap-2 mb-8 overflow-y-auto pr-1">
+        <div className="flex flex-col gap-1.5">
           {displayedEmployees.length > 0 ? (
             displayedEmployees.map((e, idx) => (
               <div
                 key={`${e.id}-${idx}`}
-                className={`bg-white border ${optimizationResult.soft_violation_details?.some((emp) => emp.employee_id === e.id) ? "border-red-300 bg-red-100" : "border-slate-100"} p-3.5 rounded-xl flex justify-between items-center cursor-default shrink-0`}
+                className={`bg-white border ${optimizationResult.soft_violation_details?.some((emp) => emp.employee_id === e.id) ? "border-red-300 bg-red-100" : "border-slate-100"} px-3 py-2 rounded-lg flex justify-between items-center cursor-default shrink-0`}
               >
-                <span className="font-bold text-[#000000] truncate max-w-[120px]">
+                <span className="text-sm font-bold text-[#000000] truncate max-w-[160px]">
                   {e.id}
                 </span>
                 <span className="text-[#000000] text-xs whitespace-nowrap">
@@ -350,11 +353,11 @@ export default function EloraSidebarLayout() {
 
     if (!optimizationResult || !parsedData) {
       return (
-        <div className="p-7 min-w-[320px]">
-          <h2 className="text-2xl text-[#000000] font-bold mb-1">
+        <div className="p-5 w-80">
+          <h2 className="text-lg text-[#000000] font-bold">
             Optimization Results
           </h2>
-          <p className="text-slate-500 text-sm mt-4">
+          <p className="text-slate-500 text-sm mt-2">
             Please run optimization to view results.
           </p>
         </div>
@@ -479,18 +482,18 @@ export default function EloraSidebarLayout() {
     ];
 
     return (
-      <div className="p-7 w-[340px]">
-        <h2 className="text-2xl text-[#000000] font-bold mb-1">
+      <div className="p-5 w-80">
+        <h2 className="text-lg text-[#000000] font-bold">
           Optimization Results
         </h2>
-        <p className="text-slate-400 text-xs mb-8">
+        <p className="text-slate-400 text-xs mb-4">
           All information regarding optimization are here
         </p>
-        <h3 className="text-lg font-bold mb-6 text-[#000000]">
-          Total Optimization :
+        <h3 className="text-sm font-bold mb-3 text-[#5E5E5E]">
+          Total Optimization
         </h3>
-        <div className="flex justify-center mb-7 relative">
-          <div className="relative w-36 h-36 flex items-center justify-center">
+        <div className="flex justify-center mb-4 relative">
+          <div className="relative w-32 h-32 flex items-center justify-center">
             <svg
               className="w-full h-full transform -rotate-90"
               viewBox={`0 0 ${size} ${size}`}
@@ -520,14 +523,14 @@ export default function EloraSidebarLayout() {
             </span>
           </div>
         </div>
-        <div className="flex flex-col gap-3 mb-6">
+        <div className="flex flex-col gap-2 mb-5">
           {[
             { l: "Cost Saved", v: costOptimizationPct },
             { l: "Time Saved", v: timeOptimizationPct },
           ].map((s) => (
             <div
               key={s.l}
-              className="p-4 rounded-2xl border border-slate-100 flex justify-between items-center cursor-default"
+              className="pl-4 pr-2 py-1.5 rounded-xl border border-slate-100 flex justify-between items-center cursor-default"
             >
               <span className="text-sm font-medium text-[#000000]">
                 {s.l} (in %)
@@ -537,7 +540,7 @@ export default function EloraSidebarLayout() {
           ))}
 
           {showMoreDetails && (
-            <div className="p-4 mt-2 rounded-2xl bg-slate-50 border border-slate-100 flex flex-col gap-3">
+            <div className="px-4 py-3 rounded-xl bg-slate-50 border border-slate-100 flex flex-col gap-2">
               <div className="flex justify-between items-center">
                 <span className="text-xs font-medium text-slate-500">
                   Vehicles Used
@@ -575,24 +578,24 @@ export default function EloraSidebarLayout() {
 
           <button
             onClick={() => setShowMoreDetails(!showMoreDetails)}
-            className="w-full py-4 bg-slate-100 rounded-2xl font-bold text-slate-400 mt-2 text-sm cursor-pointer hover:bg-slate-200 transition-colors"
+            className="w-full py-2.5 bg-slate-100 rounded-xl font-bold text-slate-400 text-sm cursor-pointer hover:bg-slate-200 transition-colors"
           >
             {showMoreDetails ? "See less..." : "See more..."}
           </button>
         </div>
-        <h3 className="text-lg font-bold mb-6 text-[#000000]">
-          Vehicles & Assignments :
+        <h3 className="text-sm font-bold mb-2 text-[#5E5E5E]">
+          Vehicles & Assignments
         </h3>
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-2">
           {vehiclesList.map((v, i) => (
             <div
               key={v.id}
-              className="p-5 rounded-3xl border border-slate-100 bg-white shadow-sm"
+              className="p-3.5 rounded-2xl border border-slate-100 bg-white shadow-sm"
             >
-              <div className="flex justify-between items-center mb-4">
-                <div className="flex items-center gap-3">
+              <div className="flex justify-between items-center mb-2.5">
+                <div className="flex items-center gap-2.5">
                   <div
-                    className={`w-3.5 h-3.5 rounded-full ${predefinedColors[i % predefinedColors.length]}`}
+                    className={`w-3 h-3 rounded-full ${predefinedColors[i % predefinedColors.length]}`}
                   />
                   <span className="font-bold text-[#000000]">{v.id}</span>
                 </div>
@@ -600,14 +603,14 @@ export default function EloraSidebarLayout() {
                   {v.employees.length} Employees
                 </span>
               </div>
-              <p className="text-slate-400 text-[10px] mb-2 font-bold uppercase tracking-wider">
+              <p className="text-slate-400 text-[10px] mb-1.5 font-bold uppercase tracking-wider">
                 Assigned Employees:
               </p>
-              <div className="flex gap-2 flex-wrap">
+              <div className="flex gap-1.5 flex-wrap">
                 {v.employees.map((emp) => (
                   <span
                     key={emp}
-                    className="px-3 py-1 rounded-full border border-slate-200 bg-white text-slate-400 text-[10px] font-bold cursor-default hover:border-slate-300 transition-colors"
+                    className="px-2.5 py-0.5 rounded-full border border-slate-200 bg-white text-slate-400 text-[10px] font-bold cursor-default hover:border-slate-300 transition-colors"
                   >
                     {emp}
                   </span>
@@ -624,11 +627,9 @@ export default function EloraSidebarLayout() {
   };
 
   const DownloadMenu = () => (
-    <div className="p-7 max-w-[320px]">
-      <div className="flex items-center justify-between mb-2">
-        <h2 className="text-xl text-[#000000] font-bold">Download Results</h2>
-      </div>
-      <p className="text-slate-400 text-xs mb-8">
+    <div className="p-5 w-80">
+      <h2 className="text-lg text-[#000000] font-bold">Download Results</h2>
+      <p className="text-slate-400 text-xs mb-4">
         Export your optimization results to Excel
       </p>
 
@@ -641,16 +642,16 @@ export default function EloraSidebarLayout() {
           </AlertDescription>
         </Alert>
       ) : (
-        <div className="flex flex-col gap-4">
-          <p className="text-slate-500 text-sm mb-2">
+        <div className="flex flex-col gap-3">
+          <p className="text-slate-500 text-sm">
             Your routes have been successfully optimized. You can now download
             the detailed vehicle summary and route sequences.
           </p>
           <button
             onClick={() => exportOptimizationResultToExcel(optimizationResult)}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-xl transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-sm"
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-sm"
           >
-            <Download className="w-5 h-5" /> Download Excel (.xlsx)
+            <Download className="w-4 h-4" /> Download Excel (.xlsx)
           </button>
         </div>
       )}
@@ -662,14 +663,14 @@ export default function EloraSidebarLayout() {
     const setMapTheme = useAppStore((state) => state.setMapTheme);
 
     return (
-      <div className="p-7 min-w-[300px]">
-        <h2 className="text-xl text-[#000000] font-bold mb-5 flex items-center gap-2">
+      <div className="p-5 w-80">
+        <h2 className="text-lg text-[#000000] font-bold mb-3 flex items-center gap-2">
           <Settings className="w-5 h-5 text-slate-700" /> Settings
         </h2>
-        <div className="border border-slate-100 rounded-[28px] p-5 bg-white">
-          <h3 className="text-sm font-bold mb-3 text-slate-800">Map Theme</h3>
-          <div className="flex flex-col gap-3">
-            <label className="flex items-center gap-3 cursor-pointer p-2 rounded-lg hover:bg-slate-50 transition-colors">
+        <div className="border border-slate-100 rounded-2xl p-3 bg-white">
+          <h3 className="text-sm font-bold mb-1 px-2 text-slate-800">Map Theme</h3>
+          <div className="flex flex-col">
+            <label className="flex items-center gap-3 cursor-pointer px-2 py-1.5 rounded-md hover:bg-slate-50 transition-colors">
               <input
                 type="radio"
                 name="theme"
@@ -682,7 +683,7 @@ export default function EloraSidebarLayout() {
                 Light Mode
               </span>
             </label>
-            <label className="flex items-center gap-3 cursor-pointer p-2 rounded-lg hover:bg-slate-50 transition-colors">
+            <label className="flex items-center gap-3 cursor-pointer px-2 py-1.5 rounded-md hover:bg-slate-50 transition-colors">
               <input
                 type="radio"
                 name="theme"
@@ -880,8 +881,8 @@ export default function EloraSidebarLayout() {
       </div>
 
       {activeTab && (
-        <div className="mt-14 w-fit bg-white rounded-4xl border border-slate-100 shadow-2xl overflow-hidden flex flex-col h-full max-h-[calc(100vh-120px)]">
-          <div className="overflow-y-auto flex-1 scrollbar-hide">
+        <div className="mt-14 self-start w-fit bg-white rounded-3xl border border-slate-100 shadow-2xl overflow-hidden flex flex-col max-h-[calc(100vh-120px)]">
+          <div className="overflow-y-auto flex-1 min-h-0 velora-scroll">
             {activeTab === "search" && <SearchMenu />}
             {activeTab === "stats" && <StatsMenu />}
             {activeTab === "results" && <ResultsMenu />}
