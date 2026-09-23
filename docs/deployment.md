@@ -8,7 +8,8 @@ Redis. The backend has since been refactored for this setup (see the status tabl
 [recommendations.md](recommendations.md)).
 
 **Status: live.** Every component below is deployed and confirmed working end to end (login,
-optimization jobs, and the superadmin dashboard) as of 2026-09-23. Section 10 has the full
+optimization jobs on test cases TC02–TC04, the MapLibre map, and the superadmin dashboard) as of
+2026-09-24. Section 10 has the full
 checklist; the only open items are the ones listed as deferred or known gaps.
 
 **Priority:** the web app comes first. The Android build is set up but not tested on a device yet.
@@ -260,6 +261,7 @@ The first rollout is done. For later changes:
 | VPC Service switched 8001 → 8010 | Live |
 | Frontend on Vercel (API routes, session cookie) | Live |
 | Login, per-user jobs and logs, superadmin-managed accounts, `/admin` dashboard | Live, verified in production |
+| Map on MapLibre + OpenFreeMap (no Google Maps key) | Live, verified in production |
 | Android app build tested on a device (confirm origin `https://localhost`) | Deferred; web first |
 | Caddy on the VM routing path prefixes to several backends | Only needed once a second backend exists |
 

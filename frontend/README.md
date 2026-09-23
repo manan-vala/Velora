@@ -14,6 +14,7 @@ A high-performance web application for visualizing and optimizing fleet routes a
 - [Local Setup](#local-setup)
 - [Environment Variables](#environment-variables)
 - [Available Scripts](#available-scripts)
+- [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -66,8 +67,9 @@ from the base-ui components in `components/map/ui`). `/mobileauth/login` renders
   with a copy button.
 - **Sending it upstream.** `/api/optimize/*` reads the cookie and forwards it to the backend as a
   Bearer token. Without a session those routes answer 401 without calling upstream.
-- **Session state.** `useSession` (React Query, key `["session"]`) reads `/api/auth/me`;
-  `useLogin`, `useSignup` and `useLogout` update it. A 401 from any other query clears the
+- **Session state.** `useSession` (React Query, key `["session"]`) reads `/api/auth/me`, which
+  returns the username and the admin flag, so the admin-only "User accounts" link survives a page
+  refresh; `useLogin` and `useLogout` update it. A 401 from any other query clears the
   session, so an expired login sends the user back to `/login` instead of retrying forever.
 - **Guards.** `RequireAuth` wraps `/visualiser`, `/dataset` and `/mobile`, redirecting to
   `/login?next=<page>` (same-site paths only) and back again after signing in. Signed-in users are
@@ -243,3 +245,12 @@ One codebase produces two builds:
 | `npm run cap:sync`  | `build:app`, then sync `out/` into the Android project   |
 | `npm run start`     | Serve the production web build locally                   |
 | `npm run lint`      | Run ESLint across the codebase                           |
+
+---
+
+## Troubleshooting
+
+- **Optimize fails at once with `Failed to fetch` / `net::ERR_FAILED`.** The workbook is probably
+  open in Excel. The page keeps a reference to the chosen file and reads it again from disk when
+  Optimize is pressed; Excel locks open workbooks, so the browser can't read it and the upload fails
+  before reaching the server. Close the file in Excel, choose it again and retry.
