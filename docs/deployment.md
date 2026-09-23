@@ -5,10 +5,13 @@ code ships, and what's still left to do.
 
 The rest of `docs/` reviews the code as it was at commit `e695d9b`, when it still used Celery and
 Redis. The backend has since been refactored for this setup (see the status table at the end and
-[recommendations.md](recommendations.md)). This document describes the **target** setup, and the
-status table tracks progress toward it.
+[recommendations.md](recommendations.md)).
 
-**Priority:** the web app comes first. The Android build is set up but not tested yet.
+**Status: live.** Every component below is deployed and confirmed working end to end (login,
+optimization jobs, and the superadmin dashboard) as of 2026-09-23. Section 10 has the full
+checklist; the only open items are the ones listed as deferred or known gaps.
+
+**Priority:** the web app comes first. The Android build is set up but not tested on a device yet.
 
 ---
 
@@ -126,11 +129,15 @@ Total ~7 GB, leaving ~4 GB for the OS, Docker and future services (plus a 4 GB s
   The backend runs one job at a time and at most this many solver processes. Each solver gets
   `SOLVER_TIME_LIMIT_S` (40 s) and is killed after a further `SOLVER_GRACE_S` (30 s), so a job's solver
   step takes at most ~3.5 minutes. The other backend variables are listed in `backend/README.md`; the
-  hub only needs to set the required ones: `DATABASE_URL`, `OSRM_URL`, `SECRET_KEY` and now also
-  `SUPERADMIN_USERNAME` / `SUPERADMIN_PASSWORD`. **Add those two to the hub's `.env` before
-  deploying**, or the backend won't start. Changing the password there rotates it on the next
-  restart.
-- **First-time setup:** clone → `cp .env.example .env` → `bash osrm/prepare.sh` → `docker compose up -d`.
+  hub sets the required ones: `DATABASE_URL`, `OSRM_URL`, `SECRET_KEY`, `SUPERADMIN_USERNAME` and
+  `SUPERADMIN_PASSWORD`. Compose passes each through to the container explicitly; a value that is
+  only in `.env` never reaches the backend, which then refuses to start. Changing the superadmin
+  password in `.env` rotates it on the next restart.
+- **First-time setup:** clone → `cp .env.example .env` and fill it in (pin `VELORA_BACKEND_TAG` to a
+  `sha-...` tag) → `bash osrm/prepare.sh` → `docker compose up -d velora-postgres`, wait for healthy
+  → `docker compose up -d`. Start Postgres first: if the database isn't reachable when the backend
+  starts, it serves anyway but skips creating the superadmin, and nobody can log in until it's
+  restarted.
 
 ## 6. Backend image pipeline
 
@@ -139,10 +146,12 @@ Total ~7 GB, leaving ~4 GB for the OS, Docker and future services (plus a 4 GB s
 - **Build:** runs on `ubuntu-24.04-arm` runners (free for public repos) and produces a `linux/arm64`
   image with no emulation.
 - **Tags:** `sha-<short-sha>`, plus `latest` on `main`.
-- **Deploy on the VM:** set `VELORA_BACKEND_TAG` in `.env`, then run
+- **Deploy on the VM:** set `VELORA_BACKEND_TAG` in `.env` (pin it to a `sha-...` tag, not `latest`,
+  so a later push to `main` doesn't change what's running until you choose to pull it), then run
   `docker compose pull velora-backend && docker compose up -d velora-backend`.
 - **Roll back:** set the previous tag and run the same two commands.
-- **After the first run:** make the GHCR package public, so the VM can pull without `docker login`.
+- **GHCR package visibility:** must be Public, so the VM can pull without `docker login`. Set once
+  under the package's settings on GitHub.
 
 ## 7. Cloudflare Worker
 
@@ -153,15 +162,19 @@ Per-caller design. Its code lives with the VM notes, outside this repo.
 - **Token check:** constant-time comparison of SHA-256 hashes.
 - **Rotation:** `TOKEN_<NAME>_NEXT` lets the old and new token both work during a change.
 - **Path limits:** each caller can only reach its own path prefixes; anything else gets 403.
-  Set `VERCEL_PROD` to `["/process-routes", "/auth"]` — the app needs `/auth/login`,
-  `/auth/register` and `/auth/me` as well as the optimization routes:
+  `VERCEL_PROD` is set to `["/process-routes", "/auth", "/admin"]`: the optimization routes,
+  `/auth/login` and `/auth/me`, and the superadmin's `/admin/users*` API. `/admin` is its own
+  top-level path on the backend, so it needs its own prefix; without it the Worker answers 403 and
+  the dashboard shows "gateway misconfigured".
 
   ```jsonc
   // wrangler.jsonc
   "CALLERS": [
-    { "name": "VERCEL_PROD", "prefixes": ["/process-routes", "/auth"] }
+    { "name": "VERCEL_PROD", "prefixes": ["/process-routes", "/auth", "/admin"] }
   ]
   ```
+
+  Any new top-level backend path the web app calls needs a prefix here too.
 - **Authorization passes through.** The Worker forwards the user's `Authorization: Bearer` header
   untouched; only `x-auth-token` is stripped. No Worker code change is needed for login.
 - **Headers to the backend:** the Worker removes `x-auth-token` before forwarding, and sets `x-caller: <NAME>`.
@@ -174,9 +187,9 @@ Per-caller design. Its code lives with the VM notes, outside this repo.
 |---|---|---|
 | Output | Normal Next.js app (Vercel) | Static export in `out/` for Capacitor |
 | API routes | Included (`*.web.ts` files) | Excluded by `pageExtensions` |
-| Calls backend via | Relative `/api/optimize` | `NEXT_PUBLIC_API_BASE_URL` = `https://<vercel-domain>/api/optimize` |
+| Calls backend via | Relative `/api/...` | `NEXT_PUBLIC_API_BASE_URL` = `https://<vercel-domain>/api` |
 
-**API routes** (`frontend/app/api/optimize/`, shared code in `frontend/lib/worker.ts`):
+**API routes** (`frontend/app/api/`, shared code in `frontend/lib/worker.ts` and `frontend/lib/session.ts`):
 
 - **`POST /api/optimize/start`:**
   - rejects bodies over 4 MB with 413 (Vercel's hard limit is about 4.5 MB)
@@ -210,24 +223,24 @@ Per-caller design. Its code lives with the VM notes, outside this repo.
 | `WORKER_TOKEN` | server only; must equal the Worker's `TOKEN_VERCEL_PROD` | Vercel + local `.env` (gitignored) |
 | `NEXT_PUBLIC_API_BASE_URL` | client, app build only | Set when running `build:app`. Now the API **root** (`https://<domain>/api`), not `/api/optimize` |
 
-**Checks done so far:**
-- typecheck, lint and web build pass
-- no token or Worker URL in any client output
-- on the dev server, the proxy reaches the live Worker, and input validation, the size limit and
-  the CORS allowlist all behave as intended
+**Verified in production:** superadmin login through Vercel → Worker → VPC Service → tunnel →
+backend → Postgres, the `/admin` dashboard, and optimization jobs. No token or Worker URL appears in
+any client bundle.
 
-## 9. Rollout order
+## 9. Deploying changes
 
-The order matters. Doing a step early breaks every call.
+The first rollout is done. For later changes:
 
-1. Set the Worker secret `TOKEN_VERCEL_PROD`, and put the same value in Vercel as `WORKER_TOKEN`.
-2. Deploy the new Worker with `VERCEL_PROD`'s prefixes set to `["/process-routes", "/auth"]`.
-3. Delete the old `AUTH_TOKEN` Worker secret.
-4. Deploy the frontend to Vercel. From here on, browsers call the Vercel API routes.
-5. Start the real backend on the VM on port 8010. Push the refactored backend to `main` first so the
-   workflow publishes an image that runs in the hub, then make the GHCR package public (section 6).
-   Check `curl http://10.0.0.53:8010/health` on the VM before step 6.
-6. Point the VPC Service at port 8010, then confirm with `wrangler vpc service get`.
+- **Backend:** push to `main` → the workflow publishes `sha-<short-sha>` → on the VM set
+  `VELORA_BACKEND_TAG` to it in the hub's `.env` → `docker compose pull velora-backend &&
+  docker compose up -d velora-backend` → `curl http://10.0.0.53:8010/health`. Jobs live in memory,
+  so deploy when nothing is running.
+- **Frontend:** redeploy on Vercel. If the change adds a new top-level backend path, add it to the
+  Worker's `VERCEL_PROD` prefixes and `wrangler deploy` first.
+- **Worker token rotation:** set `TOKEN_VERCEL_PROD_NEXT`, update `WORKER_TOKEN` in Vercel and
+  redeploy, then move the value into `TOKEN_VERCEL_PROD` and delete `_NEXT`. Both work in between.
+- **Backend port change:** only the VPC Service changes (`wrangler vpc service update`, then check
+  with `wrangler vpc service get`); the Worker needs no redeploy.
 
 ## 10. Status
 
@@ -235,17 +248,17 @@ The order matters. Doing a step early breaks every call.
 |---|---|
 | Velora repo baseline, APKs removed, ignore/attribute rules | Done |
 | `velora-vm-hub` repo (compose, OSRM prep script) | Done, pushed to `manan-vala/velora-vm-hub` |
-| Backend image workflow | Committed; the first real run happens on push |
-| Vercel API proxy + build targets | Done (commit `6f4318b`) |
-| New Worker code | Written; not deployed |
-| Backend refactor: remove Celery/Redis, call pyvroom in-process, bound solver runtime, create all DB tables, harden the API | Done and tested locally against Postgres 16 and a stub OSRM using the hub's environment; not pushed yet |
+| Backend image workflow (arm64, `sha-` tags, public GHCR package) | Live |
+| Backend refactor: no Celery/Redis, in-process pyvroom, bounded solver runtime, all DB tables, hardened API | Live |
 | Backend test suite (`backend/tests`, run in the image) | Done |
-| OSRM graph built on the VM | Not done |
-| VPC Service switched 8001 → 8010 | Not done (step 6) |
+| OSRM graph (Bangalore + ~100 km) on the VM | Live |
+| Backend container on the VM, port 8010, tag pinned | Live |
+| Per-caller Worker, `TOKEN_VERCEL_PROD` set, old `AUTH_TOKEN` deleted | Live |
+| Worker prefixes `["/process-routes", "/auth", "/admin"]` | Live |
+| VPC Service switched 8001 → 8010 | Live |
+| Frontend on Vercel (API routes, session cookie) | Live |
+| Login, per-user jobs and logs, superadmin-managed accounts, `/admin` dashboard | Live, verified in production |
 | Android app build tested on a device (confirm origin `https://localhost`) | Deferred; web first |
-| User login: JWT required on `/process-routes`, login screen, session cookie in the Vercel routes, per-user jobs and logs | Done and tested locally |
-| Superadmin-managed accounts (no signup) and the `/admin` dashboard | Done and tested locally. The hub compose passes `SUPERADMIN_USERNAME` / `SUPERADMIN_PASSWORD` through to the container; both must be set in the hub's `.env` |
-| Worker prefixes `["/process-routes", "/auth"]` | Done |
 | Caddy on the VM routing path prefixes to several backends | Only needed once a second backend exists |
 
 ## 11. Known gaps
