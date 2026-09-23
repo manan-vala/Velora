@@ -84,3 +84,16 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Map popups (MapLibre): rounded cards like the rest of the UI */
+.velora-popup .maplibregl-popup-content {
+  border-radius: 16px;
+  padding: 14px 16px;
+  box-shadow: 0 10px 30px rgb(15 23 42 / 0.15);
+}
+.velora-popup .maplibregl-popup-close-button {
+  top: 6px;
+  right: 8px;
+  font-size: 18px;
+  color: #64748b;
+}
