@@ -26,7 +26,7 @@ A high-performance web application for visualizing and optimizing fleet routes a
 | Styling              | Tailwind CSS                                         |
 | State Management     | Zustand                                              |
 | Async / Server State | TanStack React Query                                 |
-| Maps                 | Google Maps JavaScript API, `@react-google-maps/api` |
+| Maps                 | MapLibre GL JS via `react-map-gl/maplibre`, OpenFreeMap vector tiles (no API key) |
 | Excel Parsing        | ExcelJS                                              |
 | Font                 | Geist Sans / Geist Mono (via `next/font`)            |
 
@@ -79,12 +79,14 @@ from the base-ui components in `components/map/ui`). `/mobileauth/login` renders
   token to that origin instead; `lib/client.ts` stores it and sends it as an `Authorization`
   header.
 
-### Hybrid Map Rendering Engine
+### Map Rendering
 
-The mapping interface (`MapInterface.tsx` for desktop, `MobileGoogleMap` for mobile) optimizes performance by combining declarative React rendering with imperative vanilla JavaScript:
+Both maps (`components/map/MapInterface.tsx` on desktop, `components/mobile/MobileMap.tsx` on mobile) are built on `components/map/base/BaseMap.tsx`, a MapLibre map drawing [OpenFreeMap](https://openfreemap.org) vector tiles. OpenFreeMap is free with no API key, no usage limits and commercial use allowed; the only requirement is the attribution shown in the corner of the map.
 
-- **Declarative UI** — stationary markers (vehicles, employees, offices) and `InfoWindow` popups are rendered using `@react-google-maps/api` React components.
-- **Imperative routes** — optimized route polylines are drawn using raw `google.maps.Polyline` objects inside a `useEffect` hook. This ensures reliable creation and teardown, avoiding the memory leaks that can occur with purely declarative polyline components.
+- **Basemap style** — `lib/map/style.ts` recolours a pinned snapshot of OpenFreeMap's Liberty style (`lib/map/openfreemap-liberty.json`) with a light and a dark palette, for a calm Google/Protomaps-like look: light land, white roads, green parks, fewer POIs. To change the look, edit the `LIGHT`/`DARK` palettes; to explore layers, open the snapshot in [Maputnik](https://maputnik.github.io/editor). Labels use English or transliterated names because MapLibre can't draw Kannada script.
+- **Markers** — employees, vehicles, offices and the simulated taxi are GPU-drawn circle layers (`components/map/base/layers.tsx`), one GeoJSON source each, sized by zoom and enlarged when selected. Clicking one opens a MapLibre popup.
+- **Routes** — optimized routes are a GeoJSON line layer: each vehicle's decoded geometry in its own colour over a white casing, drawn beneath the markers. They are declarative, so they appear whenever results exist and survive a light/dark switch.
+- **Camera** — the store's `mapFocus` command becomes `flyTo`; recentring uses `fitBounds` over the office, pickups and vehicles (`lib/map/geo.ts`).
 - **Simulation engine** — when triggered, the map decodes precomputed route geometries (encoded polylines from the backend), then runs a `setInterval` loop to animate a taxi marker along the decoded path. A live `TaxiMeter` widget updates dynamically to reflect elapsed time and distance.
 
 ---
@@ -151,7 +153,8 @@ The mapping interface (`MapInterface.tsx` for desktop, `MobileGoogleMap` for mob
   session.ts                 Server-side session cookie helpers
   excel-parser.ts            Excel file parsing with ExcelJS
   export-excel.ts            Optimization result export to .xlsx
-  map-utils.ts               Polyline decoding and map coordinate utilities
+  map-utils.ts               Polyline decoding
+  map/                       Basemap style + palettes, geo helpers (distance, bounds, GeoJSON)
 
 /types                       Shared TypeScript type definitions
 ```
@@ -164,7 +167,6 @@ The mapping interface (`MapInterface.tsx` for desktop, `MobileGoogleMap` for mob
 
 - Node.js 20.9 or higher (required by Next.js 16)
 - npm, yarn, or pnpm
-- A Google Maps API key with the following APIs enabled: Maps JavaScript API, Places API, and Geometry Library
 
 ### 1. Clone the repository
 
@@ -186,7 +188,6 @@ yarn install
 Create a `.env` file in `frontend/`:
 
 ```env
-NEXT_PUBLIC_MAPS_API_KEY=your_google_maps_api_key_here
 WORKER_URL=https://oracle-a1-worker.manan-vala.workers.dev
 WORKER_TOKEN=your_worker_token_here
 ```
@@ -209,12 +210,11 @@ The application will be available at `http://localhost:3000`.
 
 | Variable                   | Used by   | Description                                                                                                  |
 | -------------------------- | --------- | ------------------------------------------------------------------------------------------------------------ |
-| `NEXT_PUBLIC_MAPS_API_KEY` | web + app | Google Maps API key used to load the Maps JavaScript API and render the map.                                 |
 | `WORKER_URL`               | web       | Cloudflare Worker URL. Server-only: read by the API routes, never sent to the browser.                       |
 | `WORKER_TOKEN`             | web       | Token the API routes send to the Worker as `x-auth-token`. Server-only.                                      |
 | `NEXT_PUBLIC_API_BASE_URL` | app       | Only for `build:app`: the API root, `https://<vercel-domain>/api`. The web build leaves it unset and uses `/api`. |
 
-On Vercel, set `NEXT_PUBLIC_MAPS_API_KEY`, `WORKER_URL` and `WORKER_TOKEN`, with the project root directory set to `frontend/`.
+On Vercel, set `WORKER_URL` and `WORKER_TOKEN`, with the project root directory set to `frontend/`.
 
 ---
 

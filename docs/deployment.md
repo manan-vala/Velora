@@ -218,10 +218,12 @@ Per-caller design. Its code lives with the VM notes, outside this repo.
 
 | Variable | Scope | Where |
 |---|---|---|
-| `NEXT_PUBLIC_MAPS_API_KEY` | client | Vercel + local |
 | `WORKER_URL` | server only | Vercel + local |
 | `WORKER_TOKEN` | server only; must equal the Worker's `TOKEN_VERCEL_PROD` | Vercel + local `.env` (gitignored) |
 | `NEXT_PUBLIC_API_BASE_URL` | client, app build only | Set when running `build:app`. Now the API **root** (`https://<domain>/api`), not `/api/optimize` |
+
+The map needs no key: it draws OpenFreeMap tiles (`tiles.openfreemap.org`) with MapLibre. A
+leftover `NEXT_PUBLIC_MAPS_API_KEY` on Vercel is unused and can be deleted.
 
 **Verified in production:** superadmin login through Vercel → Worker → VPC Service → tunnel →
 backend → Postgres, the `/admin` dashboard, and optimization jobs. No token or Worker URL appears in
