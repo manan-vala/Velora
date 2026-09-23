@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from "react";
+import React, { useState, useMemo } from "react";
 import { useMobileStore } from "@/store/useMobileStore";
 
 type SearchBarProps = {
@@ -10,8 +10,6 @@ export default function SearchBar({ setShowSearchBar }: SearchBarProps) {
   const selectVehicle = useMobileStore((state) => state.selectVehicle);
   const selectEmployee = useMobileStore((state) => state.selectEmployee);
   const setMapFocus = useMobileStore((state) => state.setMapFocus);
-
-  const mapRef = useRef<google.maps.Map | null>(null);
 
   const [searchType, setSearchType] = useState<"employees" | "vehicles">(
     "vehicles",
@@ -119,23 +117,6 @@ export default function SearchBar({ setShowSearchBar }: SearchBarProps) {
                             ? item.pickup_lng
                             : 0,
                         );
-                        if (
-                          window.google &&
-                          window.google.maps &&
-                          mapRef.current
-                        ) {
-                          mapRef.current.panTo({
-                            lat:
-                              typeof item.pickup_lat === "number"
-                                ? item.pickup_lat
-                                : 0,
-                            lng:
-                              typeof item.pickup_lng === "number"
-                                ? item.pickup_lng
-                                : 0,
-                          });
-                          mapRef.current.setZoom(17);
-                        }
                       } else {
                         handleLocate(
                           "vehicle",
@@ -147,23 +128,6 @@ export default function SearchBar({ setShowSearchBar }: SearchBarProps) {
                             ? item.current_lng
                             : 0,
                         );
-                        if (
-                          window.google &&
-                          window.google.maps &&
-                          mapRef.current
-                        ) {
-                          mapRef.current.panTo({
-                            lat:
-                              typeof item.current_lat === "number"
-                                ? item.current_lat
-                                : 0,
-                            lng:
-                              typeof item.current_lng === "number"
-                                ? item.current_lng
-                                : 0,
-                          });
-                          mapRef.current.setZoom(17);
-                        }
                       }
                       setShowSearchBar(false);
                       setHighlightId(idStr);

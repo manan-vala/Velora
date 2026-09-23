@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import type { Map as MaplibreMap } from "maplibre-gl";
 import { ParsedData, OptimizationResponse } from "@/types";
 
 interface AppState {
@@ -43,8 +44,8 @@ interface AppState {
   simulationTargetId: string | null;
   triggerSimulation: (id: string | null) => void;
 
-  mapInstance: google.maps.Map | null;
-  setMapInstance: (map: google.maps.Map | null) => void;
+  mapInstance: MaplibreMap | null;
+  setMapInstance: (map: MaplibreMap | null) => void;
 
   // --- MAP LAYERS ---
   layers: {

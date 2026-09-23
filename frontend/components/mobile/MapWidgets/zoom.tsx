@@ -5,28 +5,18 @@ import Image from "next/image";
 
 import { useMobileStore } from "@/store/useMobileStore";
 
-import { calculateMapCenter } from "@/lib/map-utils";
+import { fitMapToData } from "@/lib/map/geo";
 
 /* ---------------- MOBILE CONTROL BAR ---------------- */
 
 // Compass/Zoom button
 function ZoomButton() {
   const mapInstance = useMobileStore((s) => s.mapInstance);
-  const setZoom = useMobileStore((s) => s.setZoom);
   const parsedData = useMobileStore((s) => s.parsedData);
 
   const handleZoom = () => {
     if (!mapInstance || !parsedData) return;
-    const result = calculateMapCenter(
-      parsedData?.employees || [],
-      parsedData?.vehicles || [],
-    );
-    if (result) {
-      const { lat, lng, zoom } = result;
-      mapInstance.panTo({ lat, lng });
-      mapInstance.setZoom(zoom);
-      setZoom(zoom);
-    }
+    fitMapToData(mapInstance, parsedData.employees || [], parsedData.vehicles || []);
   };
 
   return (

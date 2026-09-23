@@ -1,8 +1,7 @@
 "use client";
 
-import React, { useMemo, useRef, useState } from "react";
-import { Marker, GoogleMap, useJsApiLoader } from "@react-google-maps/api";
-import { whiteMap, darkMode } from "./Mapthemes";
+import React, { useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import MobileHeader from "./MapWidgets/header";
 import { MobileToggleButton } from "./MapWidgets/toggleButton";
 import MobileFilterAndZoom from "./MapWidgets/zoom";
@@ -15,281 +14,9 @@ import UserCard from "./MapWidgets/user";
 import SearchBar from "./MapWidgets/searchBar";
 import ResultDashboard from "./MapWidgets/result";
 import MobileHelpFeedback from "./helpFeedback";
-import { decodePolyline } from "@/lib/map-utils"; 
 
-const ROUTE_COLORS = [
-  "#2563EB",
-  "#16A34A",
-  "#9333EA",
-  "#EA580C",
-  "#DC2626",
-  "#0D9488",
-];
-
-function MobileGoogleMap() {
-  const mapContainerStyle = { width: "100%", height: "100%" };
-  const parsedData = useMobileStore((state) => state.parsedData);
-  const layers = useMobileStore((state) => state.layers);
-  const setMapInstance = useMobileStore((state) => state.setMapInstance);
-  const zoom = useMobileStore((state) => state.zoom);
-  const setZoom = useMobileStore((state) => state.setZoom);
-  const activeVehicleId = useMobileStore((state) => state.activeVehicleId);
-  const activeEmployeeId = useMobileStore((state) => state.activeEmployeeId);
-  const mapFocus = useMobileStore((state) => state.mapFocus);
-
-  const optimizationResult = useMobileStore(
-    (state) => state.optimizationResult,
-  );
-
-  const [movingTaxiPos] = useState(null);
-
-  const employees = useMemo(() => parsedData?.employees || [], [parsedData]);
-  const vehicles = useMemo(() => parsedData?.vehicles || [], [parsedData]);
-
-  const center = useMemo(() => {
-    if (employees.length > 0)
-      return { lat: employees[0].pickup_lat, lng: employees[0].pickup_lng };
-    return { lat: 12.9716, lng: 77.5946 };
-  }, [employees]);
-
-  const mapTheme = useMobileStore((state) => state.mapTheme);
-  const mapOptions = useMemo(
-    () => ({
-      disableDefaultUI: true,
-      zoomControl: false,
-      mapTypeControl: false,
-      streetViewControl: false,
-      fullscreenControl: false,
-      gestureHandling: "greedy",
-      styles: mapTheme === "dark" ? darkMode : whiteMap,
-    }),
-    [mapTheme],
-  );
-
-  const mapRef = useRef<google.maps.Map | null>(null);
-
-  const polylinesRef = useRef<google.maps.Polyline[]>([]);
-
-  React.useEffect(() => {
-    if (mapRef.current && mapFocus) {
-      const map = mapRef.current;
-      const startZoom = map.getZoom();
-      const targetZoom = mapFocus.zoom;
-      const startCenter = map.getCenter();
-      const targetCenter = new window.google.maps.LatLng(
-        mapFocus.lat,
-        mapFocus.lng,
-      );
-      if (
-        startCenter &&
-        typeof startCenter.lat === "function" &&
-        typeof startCenter.lng === "function" &&
-        typeof startZoom === "number" &&
-        startCenter.lat() !== undefined &&
-        startCenter.lng() !== undefined
-      ) {
-        let animationFrame: number;
-        let progress = 0;
-        const duration = 600; 
-        const startTime = performance.now();
-
-        function animate() {
-          progress = Math.min((performance.now() - startTime) / duration, 1);
-          const startLat = startCenter ? (startCenter.lat?.() ?? 0) : 0;
-          const startLng = startCenter ? (startCenter.lng?.() ?? 0) : 0;
-          const lat = startLat + (targetCenter.lat() - startLat) * progress;
-          const lng = startLng + (targetCenter.lng() - startLng) * progress;
-          map.panTo({ lat, lng });
-          const zoom =
-            (startZoom ?? 13) + (targetZoom - (startZoom ?? 13)) * progress;
-          map.setZoom(zoom);
-          if (progress < 1) {
-            animationFrame = requestAnimationFrame(animate);
-          } else {
-            map.setZoom(targetZoom);
-            map.panTo(targetCenter);
-          }
-        }
-        animate();
-        return () => cancelAnimationFrame(animationFrame);
-      }
-    }
-  }, [mapFocus]);
-
-  React.useEffect(() => {
-    polylinesRef.current.forEach((p) => {
-      p.setMap(null);
-    });
-    polylinesRef.current = [];
-
-    if (!layers.routes || !optimizationResult || !mapRef.current) {
-      return;
-    }
-
-    const map = mapRef.current;
-    const newPolylines: google.maps.Polyline[] = [];
-
-    interface OptimizedVehicle {
-      vehicle_id: string;
-      route_geometry?: Array<{ geometry: string }>;
-    }
-    
-    // Try both possible data structures
-    const vehicles = optimizationResult.data?.vehicles ||
-            (optimizationResult as unknown as { vehicles?: OptimizedVehicle[] }).vehicles ||
-            [];
-    const optimizedVehicles = vehicles as OptimizedVehicle[];
-
-    optimizedVehicles.forEach((vehicle, index: number) => {
-      if (!vehicle.route_geometry || !Array.isArray(vehicle.route_geometry)) {
-        console.log(`Vehicle ${vehicle.vehicle_id} has no route_geometry`);
-        return;
-      }
-
-      try {
-        const fullPath = vehicle.route_geometry.flatMap((segment) =>
-          decodePolyline(segment.geometry),
-        );
-        
-        if (fullPath.length === 0) {
-          console.log(`Vehicle ${vehicle.vehicle_id} has empty path after decoding`);
-          return;
-        }
-        
-        const color = ROUTE_COLORS[index % ROUTE_COLORS.length];
-
-        const polyline = new google.maps.Polyline({
-          path: fullPath,
-          strokeColor: color,
-          strokeOpacity: 0.8,
-          strokeWeight: 5,
-          geodesic: true,
-          map: map,
-        });
-        newPolylines.push(polyline);
-        console.log(`Created polyline for vehicle ${vehicle.vehicle_id} with ${fullPath.length} points`);
-      } catch (error) {
-        console.error(`Error creating polyline for vehicle ${vehicle.vehicle_id}:`, error);
-      }
-    });
-
-    polylinesRef.current = newPolylines;
-    console.log(`Total polylines created: ${newPolylines.length}`);
-
-    return () => {
-      newPolylines.forEach((p) => p.setMap(null));
-    };
-  }, [layers.routes, optimizationResult]);
-
-  return (
-    <GoogleMap
-      mapContainerStyle={mapContainerStyle}
-      center={center}
-      zoom={13}
-      onLoad={(map) => {
-        mapRef.current = map;
-        setMapInstance(map);
-      }}
-      onZoomChanged={() => {
-        if (mapRef.current && typeof mapRef.current.getZoom === "function")
-          setZoom(mapRef.current.getZoom() || 13);
-      }}
-      options={mapOptions}
-    >
-      {movingTaxiPos && (
-        <Marker
-          position={movingTaxiPos}
-          icon={{
-            path: window.google?.maps?.SymbolPath?.CIRCLE,
-            scale: Math.max(8, zoom / 1.5),
-            fillColor: "#F59E0B",
-            fillOpacity: 1,
-            strokeWeight: 2,
-            strokeColor: "white",
-          }}
-          zIndex={100}
-        />
-      )}
-
-      {layers?.vehicles &&
-        vehicles
-          .filter((v) => !activeVehicleId || v.vehicle_id !== activeVehicleId)
-          .map((veh) => (
-            <Marker
-              key={veh.vehicle_id}
-              position={{ lat: veh.current_lat, lng: veh.current_lng }}
-              icon={{
-                path: window.google?.maps?.SymbolPath?.CIRCLE,
-                scale: Math.max(6, zoom / 2),
-                fillColor: "#10B981",
-                fillOpacity: 1,
-                strokeWeight: 2,
-                strokeColor: "white",
-              }}
-              zIndex={50}
-            />
-          ))}
-      {layers?.vehicles &&
-        activeVehicleId &&
-        vehicles.find((v) => v.vehicle_id === activeVehicleId) && (
-          <Marker
-            position={{
-              lat:
-                vehicles.find((v) => v.vehicle_id === activeVehicleId)
-                  ?.current_lat ?? 0,
-              lng:
-                vehicles.find((v) => v.vehicle_id === activeVehicleId)
-                  ?.current_lng ?? 0,
-            }}
-            icon={{
-              path: window.google?.maps?.SymbolPath?.CIRCLE,
-              scale: 12,
-              fillColor: "#10B981",
-              fillOpacity: 1,
-              strokeWeight: 4,
-              strokeColor: "white",
-            }}
-            zIndex={100}
-          />
-        )}
-      {layers?.employees &&
-        employees.map((emp) => {
-          const isActive = emp.employee_id === activeEmployeeId;
-          return (
-            <Marker
-              key={emp.employee_id}
-              position={{ lat: emp.pickup_lat, lng: emp.pickup_lng }}
-              icon={{
-                path: window.google?.maps?.SymbolPath?.CIRCLE,
-                scale: isActive ? 12 : Math.max(6, zoom / 2),
-                fillColor: "#3B82F6",
-                fillOpacity: 1,
-                strokeWeight: isActive ? 4 : 2,
-                strokeColor: "white",
-              }}
-              zIndex={isActive ? 100 : 40}
-            />
-          );
-        })}
-      {layers?.office &&
-        employees.map((emp) => (
-          <Marker
-            key={`office-${emp.employee_id}`}
-            position={{ lat: emp.drop_lat, lng: emp.drop_lng }}
-            icon={{
-              path: window.google?.maps?.SymbolPath?.CIRCLE,
-              scale: Math.max(10, zoom / 1.2),
-              fillColor: "#EF4444",
-              fillOpacity: 1,
-              strokeWeight: 2,
-              strokeColor: "white",
-            }}
-            zIndex={30}
-          />
-        ))}
-    </GoogleMap>
-  );
-}
+// MapLibre needs the browser, so the map only loads client-side
+const MobileMap = dynamic(() => import("./MobileMap"), { ssr: false });
 
 function Group10({ onFileSelect }: { onFileSelect: () => void }) {
   return (
@@ -399,12 +126,6 @@ export default function MobileVisualiser() {
     [],
   );
   
-  const { isLoaded } = useJsApiLoader({
-    id: "google-map-script",
-    googleMapsApiKey: process.env.NEXT_PUBLIC_MAPS_API_KEY || "",
-    libraries: ["places", "geometry"],
-  });
-
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [showUploadCard, setShowUploadCard] = useState(true);
@@ -503,7 +224,7 @@ export default function MobileVisualiser() {
         {activeView === "map" && (
           <>
             <div className="absolute inset-0 z-0">
-              {isLoaded && <MobileGoogleMap />}
+              <MobileMap />
             </div>
             {/* Zoom, Search, Result overlays */}
             {!showUserCard && (
