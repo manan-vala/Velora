@@ -11,14 +11,11 @@ import {
   AlertCircle,
   Settings,
   HelpCircle,
-  MessageSquareMore,
   Upload,
   FileSpreadsheet,
   Users,
   Car,
-  Bug,
   LogOut,
-  ChevronRight,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useOptimization } from "@/hooks/useOptimization";
@@ -714,11 +711,11 @@ export default function EloraSidebarLayout() {
     >
       <div
         onMouseEnter={() => setIsSidebarExpanded(true)}
-        className={`bg-white h-full rounded-3xl shadow-lg border border-slate-100 flex flex-col py-6 px-3 transition-all duration-300 ${isSidebarExpanded ? "w-64" : "w-20"}`}
+        className={`bg-white h-full rounded-3xl shadow-lg border border-slate-100 flex flex-col py-4 px-3 transition-all duration-300 ${isSidebarExpanded ? "w-64" : "w-20"}`}
       >
-        <div className="flex items-center h-12 mb-2 shrink-0">
+        <div className="flex items-center h-10 mb-1 shrink-0">
           <div
-            className="w-12 h-12 flex items-center justify-center shrink-0 cursor-pointer"
+            className="w-12 h-10 flex items-center justify-center shrink-0 cursor-pointer"
             onClick={() => setIsSidebarExpanded((prev) => !prev)}
           >
             <Menu className="w-6 h-6 text-slate-700" />
@@ -736,7 +733,7 @@ export default function EloraSidebarLayout() {
           </div>
         </div>
 
-        <div className="flex flex-col flex-1 gap-1">
+        <div className="flex flex-col flex-1 min-h-0 gap-0.5 overflow-y-auto scrollbar-hide">
           {[
             { id: "search", icon: Search, label: "Search" },
             { id: "stats", icon: BarChart3, label: "Stats" },
@@ -746,9 +743,9 @@ export default function EloraSidebarLayout() {
             <div
               key={item.id}
               onMouseEnter={() => setActiveTab(item.id)}
-              className={`flex items-center h-12 rounded-xl cursor-pointer group ${activeTab === item.id ? "bg-[#E5E7EB]" : "hover:bg-slate-50"}`}
+              className={`flex items-center h-10 rounded-xl cursor-pointer group shrink-0 ${activeTab === item.id ? "bg-[#E5E7EB]" : "hover:bg-slate-50"}`}
             >
-              <div className="w-12 h-12 flex items-center justify-center shrink-0">
+              <div className="w-12 h-10 flex items-center justify-center shrink-0">
                 <item.icon className="w-6 h-6 text-[#000000]" />
               </div>
               <span
@@ -759,11 +756,11 @@ export default function EloraSidebarLayout() {
             </div>
           ))}
 
-          <div className="w-full my-2">
-            <hr className="border-slate-50 mb-2" />
-            <div className="flex items-center h-12 w-full">
+          <div className="w-full my-1 shrink-0">
+            <hr className="border-slate-50 mb-1" />
+            <div className="flex items-center h-10 w-full">
               {/* Replaced optimization icon logic with optimization.svg */}
-              <div className="w-12 h-12 flex items-center justify-center shrink-0 relative">
+              <div className="w-12 h-10 flex items-center justify-center shrink-0 relative">
                 <div className="relative w-6 h-6">
                   <Image
                     src="/optimized.svg"
@@ -800,7 +797,7 @@ export default function EloraSidebarLayout() {
                 </button>
               </div>
             </div>
-            <hr className="border-slate-50 mt-2" />
+            <hr className="border-slate-50 mt-1" />
           </div>
 
           {/* Loaders and Popups */}
@@ -815,7 +812,6 @@ export default function EloraSidebarLayout() {
           {[
             { id: "settings", icon: Settings, l: "Settings" },
             { id: "help", icon: HelpCircle, l: "Help" },
-            { id: "bug report", icon: Bug, l: "Report Bugs" },
             ...(isAdmin ? [{ id: "users", icon: Users, l: "User accounts" }] : []),
             { id: "log out", icon: LogOut, l: user ? `Log out (${user.username})` : "Log out" },
           ].map((item) => (
@@ -831,9 +827,9 @@ export default function EloraSidebarLayout() {
                 }
               }}
               onMouseEnter={() => setActiveTab(item.id)}
-              className={`flex items-center h-12 rounded-xl cursor-pointer group ${activeTab === item.id ? "bg-[#E5E7EB]" : "hover:bg-slate-50"}`}
+              className={`flex items-center h-10 rounded-xl cursor-pointer group shrink-0 ${activeTab === item.id ? "bg-[#E5E7EB]" : "hover:bg-slate-50"}`}
             >
-              <div className="w-12 h-12 flex items-center justify-center shrink-0">
+              <div className="w-12 h-10 flex items-center justify-center shrink-0">
                 <item.icon className="w-5 h-5 text-[#000000]" />
               </div>
               <span
@@ -846,13 +842,13 @@ export default function EloraSidebarLayout() {
         </div>
 
         <div
-          className={`${isSidebarExpanded ? "p-4 bg-slate-50 rounded-3xl border border-slate-100" : "py-4 h-28"}`}
+          className={`shrink-0 ${isSidebarExpanded ? "p-3 bg-slate-50 rounded-3xl border border-slate-100" : "py-3 h-20"}`}
           onDragOver={onDragOver}
           onDragLeave={onDragLeave}
           onDrop={onDrop}
         >
           <div
-            className={`flex cursor-pointer ${isSidebarExpanded ? "items-center justify-center bg-white p-2 rounded-lg mb-2 shadow-sm" : "items-start justify-center w-12 h-12"}`}
+            className={`flex cursor-pointer ${isSidebarExpanded ? "items-center justify-center bg-white p-2 rounded-lg mb-1.5 shadow-sm" : "items-start justify-center w-12 h-12"}`}
           >
             <FileSpreadsheet
               className={`w-5 h-5 ${
@@ -862,7 +858,7 @@ export default function EloraSidebarLayout() {
           </div>
           {isSidebarExpanded && (
             <div className="text-center">
-              <p className="text-[9px] text-slate-400 mb-2 leading-tight">
+              <p className="text-[9px] text-slate-400 mb-1.5 leading-tight">
                 {isDragging ? "Drop file here" : "Drag and drop or"}
                 <br />
                 {!isDragging && "select an excel file."}
