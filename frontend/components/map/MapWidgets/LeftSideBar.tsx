@@ -733,7 +733,7 @@ export default function EloraSidebarLayout() {
           </div>
         </div>
 
-        <div className="flex flex-col flex-1 min-h-0 gap-0.5 overflow-y-auto scrollbar-hide">
+        <div className="flex flex-col flex-1 min-h-0 gap-0.5 overflow-y-auto overflow-x-hidden scrollbar-hide">
           {[
             { id: "search", icon: Search, label: "Search" },
             { id: "stats", icon: BarChart3, label: "Stats" },
