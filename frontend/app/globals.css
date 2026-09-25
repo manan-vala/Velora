@@ -11,6 +11,10 @@
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 
+  /* Smallest step of the type scale, for meta text and chips (text-2xs) */
+  --text-2xs: 0.6875rem;
+  --text-2xs--line-height: 1rem;
+
   /* shadcn palette. The values live on .auth-theme, so screens that don't opt in are unaffected. */
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
@@ -51,6 +55,15 @@
   color: var(--foreground);
 }
 
+/* Themed screens draw borders in the theme's border color, not Tailwind v4's currentColor */
+@layer base {
+  .auth-theme *,
+  .auth-theme ::before,
+  .auth-theme ::after {
+    border-color: var(--border);
+  }
+}
+
 @media (prefers-color-scheme: dark) {
   .auth-theme {
     --background: oklch(0.141 0.005 285.823);
@@ -82,21 +95,24 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
 }
 
 /* Map popups (MapLibre): rounded cards like the rest of the UI */
 .velora-popup .maplibregl-popup-content {
-  border-radius: 16px;
-  padding: 14px 16px;
-  box-shadow: 0 10px 30px rgb(15 23 42 / 0.15);
+  border-radius: 12px;
+  padding: 12px;
+  box-shadow: 0 8px 24px rgb(15 23 42 / 0.15);
 }
 .velora-popup .maplibregl-popup-close-button {
   top: 6px;
-  right: 8px;
-  font-size: 18px;
+  right: 6px;
+  font-size: 16px;
   color: #64748b;
 }
+
+/* Web map: credits sit top-right, just under the Map View / Dataset toggle */
+.velora-web-map .maplibregl-ctrl-top-right { top: 54px; right: 6px; }
 
 /* Route playback: the moving vehicle dot, with a soft ring pulsing out while it drives */
 .velora-vehicle-dot {
@@ -150,3 +166,9 @@ body {
 
 /* Thin, unobtrusive scrollbar for small scrolling panels */
 .velora-scroll { scrollbar-width: thin; scrollbar-color: rgb(148 163 184 / 0.5) transparent; }
+
+/* Scrolls without showing a scrollbar (sidebar nav list, legend bar on narrow screens) */
+@utility scrollbar-hide {
+  scrollbar-width: none;
+  &::-webkit-scrollbar { display: none; }
+}

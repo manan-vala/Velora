@@ -22,17 +22,17 @@ export default function StatsSection() {
   ];
 
   return (
-    <section className="w-full bg-black py-2 sm:py-2 md:py-12 lg:py-4 flex justify-center">
-      <div className="w-full max-w-xs sm:max-w-md md:max-w-2xl lg:max-w-4xl xl:max-w-6xl px-4 sm:px-6 md:px-8 flex flex-col md:flex-row items-stretch md:items-center justify-center gap-2 md:gap-4">
+    <section className="w-full bg-black px-6 md:px-10 lg:px-16 py-6 md:py-8">
+      <div className="max-w-5xl mx-auto grid grid-cols-1 sm:grid-cols-3 gap-4">
         {stats.map((stat, index) => (
           <div
             key={index}
-            className="flex flex-col items-center justify-center flex-1 min-w-0"
+            className="flex flex-col items-center justify-center min-w-0"
           >
-            <div className="font-sans text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-bold leading-tight text-white">
+            <div className="text-3xl md:text-4xl lg:text-5xl font-bold tracking-tight leading-tight text-white">
               {stat.value}
             </div>
-            <div className="font-sans text-xs sm:text-sm md:text-base lg:text-lg leading-relaxed text-[#99a1af] text-center mt-2">
+            <div className="text-xs md:text-sm text-[#99a1af] text-center mt-1">
               {stat.label}
             </div>
           </div>

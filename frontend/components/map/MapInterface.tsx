@@ -205,7 +205,7 @@ export default function MapInterface({
       : null;
 
   return (
-    <div className="relative w-full h-full bg-slate-100 overflow-hidden font-sans">
+    <div className="velora-web-map relative w-full h-full bg-slate-100 overflow-hidden font-sans">
       {/* --- LAYER 1: THE MAP --- */}
       <div className="absolute inset-0 z-0">
         <BaseMap
@@ -218,6 +218,7 @@ export default function MapInterface({
             setMapInstance(map);
           }}
           onZoomEnd={setZoom}
+          attributionPosition={isMobileView ? "bottom-right" : "top-right"}
         >
           <PointLayers
             offices={officePoints}
@@ -268,43 +269,43 @@ export default function MapInterface({
               maxWidth="none"
               className="velora-popup"
             >
-              <div className="flex flex-col gap-3 min-w-[200px] p-1 font-sans">
-                <div className="flex items-center gap-3 border-b border-slate-100 pb-3">
-                  <div className="p-2.5 bg-emerald-100 rounded-xl text-emerald-600 shadow-sm">
-                    <Car className="w-5 h-5" />
+              <div className="flex flex-col gap-2 min-w-[180px] font-sans">
+                <div className="flex items-center gap-2.5 border-b border-slate-100 pb-2 pr-4">
+                  <div className="p-1.5 bg-emerald-100 rounded-lg text-emerald-600">
+                    <Car className="w-4 h-4" />
                   </div>
                   <div>
-                    <h3 className="font-bold text-slate-800 text-sm leading-none">
+                    <h3 className="font-semibold text-slate-900 text-sm leading-none">
                       {popupVehicle.vehicle_id}
                     </h3>
-                    <p className="text-xs text-slate-500 mt-1.5 font-medium">
+                    <p className="text-2xs text-slate-500 mt-1">
                       Vehicle Details
                     </p>
                   </div>
                 </div>
 
-                <div className="flex flex-col gap-2.5 mt-1">
-                  <div className="flex justify-between items-center text-sm">
+                <div className="flex flex-col gap-1.5">
+                  <div className="flex justify-between items-center gap-4 text-xs">
                     <span className="text-slate-500 flex items-center gap-1.5">
-                      <Tag className="w-4 h-4" /> Type
+                      <Tag className="w-3.5 h-3.5" /> Type
                     </span>
-                    <span className="font-semibold text-slate-700 bg-slate-50 px-2 py-0.5 rounded-md border border-slate-100">
+                    <span className="font-medium text-slate-900 bg-slate-50 px-1.5 rounded-md border border-slate-100">
                       {popupVehicle.vehicle_type}
                     </span>
                   </div>
-                  <div className="flex justify-between items-center text-sm">
+                  <div className="flex justify-between items-center gap-4 text-xs">
                     <span className="text-slate-500 flex items-center gap-1.5">
-                      <Users className="w-4 h-4" /> Capacity
+                      <Users className="w-3.5 h-3.5" /> Capacity
                     </span>
-                    <span className="font-semibold text-slate-700">
+                    <span className="font-medium text-slate-900">
                       {popupVehicle.capacity} seats
                     </span>
                   </div>
-                  <div className="flex justify-between items-center text-sm">
+                  <div className="flex justify-between items-center gap-4 text-xs">
                     <span className="text-slate-500 flex items-center gap-1.5">
-                      <Gauge className="w-4 h-4" /> Speed
+                      <Gauge className="w-3.5 h-3.5" /> Speed
                     </span>
-                    <span className="font-semibold text-slate-700">
+                    <span className="font-medium text-slate-900">
                       {popupVehicle.avg_speed_kmph} km/h
                     </span>
                   </div>
@@ -324,43 +325,43 @@ export default function MapInterface({
               maxWidth="none"
               className="velora-popup"
             >
-              <div className="flex flex-col gap-3 min-w-[200px] p-1 font-sans">
-                <div className="flex items-center gap-3 border-b border-slate-100 pb-3">
-                  <div className="p-2.5 bg-blue-100 rounded-xl text-blue-600 shadow-sm">
-                    <User className="w-5 h-5" />
+              <div className="flex flex-col gap-2 min-w-[180px] font-sans">
+                <div className="flex items-center gap-2.5 border-b border-slate-100 pb-2 pr-4">
+                  <div className="p-1.5 bg-blue-100 rounded-lg text-blue-600">
+                    <User className="w-4 h-4" />
                   </div>
                   <div>
-                    <h3 className="font-bold text-slate-800 text-sm leading-none">
+                    <h3 className="font-semibold text-slate-900 text-sm leading-none">
                       {popupEmployee.employee_id}
                     </h3>
-                    <p className="text-xs text-slate-500 mt-1.5 font-medium">
+                    <p className="text-2xs text-slate-500 mt-1">
                       Employee Info
                     </p>
                   </div>
                 </div>
 
-                <div className="flex flex-col gap-2.5 mt-1">
-                  <div className="flex justify-between items-center text-sm">
+                <div className="flex flex-col gap-1.5">
+                  <div className="flex justify-between items-center gap-4 text-xs">
                     <span className="text-slate-500 flex items-center gap-1.5">
-                      <Star className="w-4 h-4" /> Priority
+                      <Star className="w-3.5 h-3.5" /> Priority
                     </span>
-                    <span className="font-semibold text-slate-700 bg-slate-50 px-2 py-0.5 rounded-md border border-slate-100">
+                    <span className="font-medium text-slate-900 bg-slate-50 px-1.5 rounded-md border border-slate-100">
                       {popupEmployee.priority}
                     </span>
                   </div>
-                  <div className="flex justify-between items-center text-sm">
+                  <div className="flex justify-between items-center gap-4 text-xs">
                     <span className="text-slate-500 flex items-center gap-1.5">
-                      <Car className="w-4 h-4" /> Preference
+                      <Car className="w-3.5 h-3.5" /> Preference
                     </span>
-                    <span className="font-semibold text-slate-700 capitalize">
+                    <span className="font-medium text-slate-900 capitalize">
                       {String(popupEmployee.vehicle_preference).toLowerCase()}
                     </span>
                   </div>
-                  <div className="flex justify-between items-center text-sm">
+                  <div className="flex justify-between items-center gap-4 text-xs">
                     <span className="text-slate-500 flex items-center gap-1.5">
-                      <Users className="w-4 h-4" /> Sharing
+                      <Users className="w-3.5 h-3.5" /> Sharing
                     </span>
-                    <span className="font-semibold text-slate-700 capitalize">
+                    <span className="font-medium text-slate-900 capitalize">
                       {String(popupEmployee.sharing_preference).toLowerCase()}
                     </span>
                   </div>

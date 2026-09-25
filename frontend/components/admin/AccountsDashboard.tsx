@@ -51,8 +51,8 @@ function NewPasswordNotice({ account, onDismiss }: { account: AccountWithPasswor
   return (
     <Card className="border-primary/30 bg-secondary/40 gap-3">
       <CardHeader className="gap-1">
-        <CardTitle className="text-sm">Password for {account.username}</CardTitle>
-        <CardDescription className="text-sm">
+        <CardTitle className="text-sm font-semibold">Password for {account.username}</CardTitle>
+        <CardDescription className="text-xs">
           Copy it now and pass it on — it can&apos;t be shown again. Generate a new one any time.
         </CardDescription>
       </CardHeader>
@@ -113,11 +113,11 @@ export default function AccountsDashboard() {
   const error = accounts.error ?? create.error ?? resetPassword.error ?? access.error ?? remove.error;
 
   return (
-    <div className="auth-theme min-h-screen px-4 py-10">
-      <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
+    <div className="auth-theme min-h-screen px-4 py-8">
+      <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
         <div className="flex items-center justify-between gap-4">
           <div>
-            <h1 className="text-xl font-semibold tracking-tight">User accounts</h1>
+            <h1 className="text-lg font-semibold tracking-tight">User accounts</h1>
             <p className="text-muted-foreground text-sm">
               Only people with an account here can sign in. Signed in as {user?.username}.
             </p>
@@ -135,8 +135,8 @@ export default function AccountsDashboard() {
 
         <Card className="gap-4">
           <CardHeader className="gap-1">
-            <CardTitle className="text-sm">Add a user</CardTitle>
-            <CardDescription className="text-sm">
+            <CardTitle className="text-sm font-semibold">Add a user</CardTitle>
+            <CardDescription className="text-xs">
               We generate the password and show it to you once.
             </CardDescription>
           </CardHeader>
@@ -175,10 +175,10 @@ export default function AccountsDashboard() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>User</TableHead>
+                  <TableHead className="px-4">User</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Last sign-in</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead className="px-4 text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -186,7 +186,7 @@ export default function AccountsDashboard() {
                   const isSelf = account.username === user?.username;
                   return (
                     <TableRow key={account.username}>
-                      <TableCell className="font-medium">
+                      <TableCell className="px-4 font-medium">
                         {account.username}
                         {account.is_admin && (
                           <Badge variant="secondary" className="ml-2">
@@ -200,7 +200,7 @@ export default function AccountsDashboard() {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-muted-foreground">{formatDate(account.last_login_at)}</TableCell>
-                      <TableCell>
+                      <TableCell className="px-4">
                         <div className="flex flex-wrap justify-end gap-1">
                           <Button
                             type="button"

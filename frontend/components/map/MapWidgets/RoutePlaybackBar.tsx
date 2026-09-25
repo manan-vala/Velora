@@ -76,14 +76,14 @@ function rowsOf(journey: Journey | null, view: PlaybackView): Row[] {
 function StatusIcon({ state, color, paused }: { state: Row["state"]; color: string; paused: boolean }) {
   if (state === "driving") {
     return (
-      <span className="grid place-items-center w-6 h-6 shrink-0">
-        <Loading size={20} color={color} playState={paused ? "paused" : "running"} />
+      <span className="grid place-items-center w-5 h-5 shrink-0">
+        <Loading size={16} color={color} playState={paused ? "paused" : "running"} />
       </span>
     );
   }
   return (
-    <span className="velora-pop grid place-items-center w-6 h-6 rounded-full bg-emerald-500 text-white shadow-sm shadow-emerald-500/30 shrink-0">
-      <Check className="w-3.5 h-3.5" strokeWidth={3} />
+    <span className="velora-pop grid place-items-center w-5 h-5 rounded-full bg-emerald-500 text-white shadow-sm shadow-emerald-500/30 shrink-0">
+      <Check className="w-3 h-3" strokeWidth={3} />
     </span>
   );
 }
@@ -119,22 +119,22 @@ function VehiclePicker({
         onClick={() => setOpen((o) => !o)}
         aria-haspopup="listbox"
         aria-expanded={open}
-        className="flex items-center gap-2 h-10 pl-3 pr-2.5 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200/70 transition-colors max-w-full"
+        className="flex items-center gap-2 h-8 pl-2.5 pr-2 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200/70 transition-colors max-w-full"
       >
         <span
-          className="w-2.5 h-2.5 rounded-full shrink-0 ring-2 ring-white shadow"
+          className="w-2 h-2 rounded-full shrink-0"
           style={{ background: ROUTE_COLORS[Math.max(selectedIndex, 0) % ROUTE_COLORS.length] }}
         />
-        <span className="text-sm font-semibold text-slate-800 truncate">{selectedId ?? "Vehicle"}</span>
+        <span className="text-xs font-medium text-slate-900 truncate">{selectedId ?? "Vehicle"}</span>
         <ChevronUp
-          className={`w-4 h-4 text-slate-400 shrink-0 transition-transform duration-200 ${open ? "" : "rotate-180"}`}
+          className={`w-3.5 h-3.5 text-slate-400 shrink-0 transition-transform duration-200 ${open ? "" : "rotate-180"}`}
         />
       </button>
 
       {open && (
         <ul
           role="listbox"
-          className="velora-rise absolute bottom-full left-0 mb-2 w-60 max-h-72 overflow-y-auto velora-scroll rounded-2xl bg-white p-1.5 shadow-2xl shadow-slate-900/15 border border-slate-100"
+          className="velora-rise absolute bottom-full left-0 mb-3 w-56 max-h-72 overflow-y-auto velora-scroll rounded-xl bg-white p-1 shadow-xl shadow-slate-900/10 ring-1 ring-slate-200/70"
         >
           {routes.map((route, i) => {
             const selected = route.vehicle_id === selectedId;
@@ -149,22 +149,22 @@ function VehiclePicker({
                     onSelect(route.vehicle_id);
                     setOpen(false);
                   }}
-                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-left transition-colors ${
+                  className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-left transition-colors ${
                     selected ? "bg-slate-100" : "hover:bg-slate-50"
                   }`}
                 >
                   <span
-                    className="w-2.5 h-2.5 rounded-full shrink-0"
+                    className="w-2 h-2 rounded-full shrink-0"
                     style={{ background: ROUTE_COLORS[i % ROUTE_COLORS.length] }}
                   />
                   <span className="flex-1 min-w-0">
-                    <span className="block text-sm font-semibold text-slate-800 truncate">{route.vehicle_id}</span>
-                    <span className="block text-xs text-slate-400 truncate">
+                    <span className="block text-xs font-medium text-slate-900 truncate">{route.vehicle_id}</span>
+                    <span className="block text-2xs text-slate-400 truncate">
                       {stops} stop{stops === 1 ? "" : "s"}
                       {route.vehicle_type ? ` · ${route.vehicle_type}` : ""}
                     </span>
                   </span>
-                  {selected && <Check className="w-4 h-4 text-slate-700 shrink-0" />}
+                  {selected && <Check className="w-3.5 h-3.5 text-slate-700 shrink-0" />}
                 </button>
               </li>
             );
@@ -210,12 +210,12 @@ export default function RoutePlaybackBar({
   return (
     <div
       className={`velora-rise absolute left-1/2 -translate-x-1/2 z-30 transition-[bottom] duration-300 ease-out ${
-        lifted ? "bottom-26" : "bottom-6"
+        lifted ? "bottom-17" : "bottom-4"
       }`}
     >
       <div
-        className={`rounded-3xl bg-white/95 backdrop-blur-md shadow-2xl shadow-slate-900/15 border border-slate-100 transition-[width] duration-300 ease-out ${
-          active ? "w-[400px]" : "w-[272px]"
+        className={`rounded-2xl bg-white/95 backdrop-blur-md shadow-xl shadow-slate-900/10 ring-1 ring-slate-200/70 transition-[width] duration-300 ease-out ${
+          active ? "w-[360px]" : "w-[256px]"
         } max-w-[calc(100vw-2rem)]`}
       >
         {/* Live log: opens upwards while a journey runs */}
@@ -226,35 +226,35 @@ export default function RoutePlaybackBar({
           aria-hidden={!active}
         >
           <div className="min-h-0 overflow-hidden">
-            <ol ref={listRef} className="max-h-48 overflow-y-auto velora-scroll px-2.5 pt-2.5 space-y-0.5" aria-live="polite">
+            <ol ref={listRef} className="max-h-44 overflow-y-auto velora-scroll px-1 pt-1 space-y-0.5" aria-live="polite">
               {rows.map((row, i) => {
                 const current = i === rows.length - 1;
                 return (
                   <li
                     key={row.key}
-                    className={`velora-row-in flex items-center gap-3 rounded-2xl px-2.5 py-2 transition-colors duration-300 ${
+                    className={`velora-row-in flex items-center gap-2.5 rounded-xl px-2 py-1.5 transition-colors duration-300 ${
                       current ? "bg-slate-50" : ""
                     }`}
                   >
                     <StatusIcon key={row.state} state={row.state} color={color} paused={view.status === "paused"} />
                     <div className="flex-1 min-w-0">
                       <p
-                        className={`text-sm truncate transition-colors duration-300 ${
-                          current ? "font-semibold text-slate-800" : "font-medium text-slate-500"
+                        className={`text-xs truncate transition-colors duration-300 ${
+                          current ? "font-semibold text-slate-900" : "font-medium text-slate-500"
                         }`}
                       >
                         {row.title}
                       </p>
-                      {row.detail && <p className="text-xs text-slate-400 truncate">{row.detail}</p>}
+                      {row.detail && <p className="text-2xs text-slate-400 truncate">{row.detail}</p>}
                     </div>
                     {row.time && (
-                      <span className="text-xs tabular-nums text-slate-400 shrink-0">{row.time}</span>
+                      <span className="text-2xs tabular-nums text-slate-400 shrink-0">{row.time}</span>
                     )}
                   </li>
                 );
               })}
             </ol>
-            <div className="mx-5 mt-2 h-1 rounded-full bg-slate-100 overflow-hidden">
+            <div className="mx-3 mt-1.5 h-1 rounded-full bg-slate-100 overflow-hidden">
               <div
                 ref={progressRef}
                 className="h-full w-full rounded-full origin-left"
@@ -265,7 +265,7 @@ export default function RoutePlaybackBar({
         </div>
 
         {/* Controls */}
-        <div className="flex items-center gap-2 p-2">
+        <div className="flex items-center gap-1.5 p-1">
           <VehiclePicker routes={routes} selectedId={selectedId} onSelect={onSelect} />
 
           <div className="flex-1 min-w-0 text-right pr-1">
@@ -291,9 +291,9 @@ export default function RoutePlaybackBar({
               onClick={onStop}
               aria-label="Stop playback"
               title="Stop"
-              className="grid place-items-center w-10 h-10 rounded-full text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors"
+              className="grid place-items-center w-8 h-8 rounded-full text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors"
             >
-              <Square className="w-3.5 h-3.5 fill-current" />
+              <Square className="w-3 h-3 fill-current" />
             </button>
           )}
 
@@ -303,11 +303,11 @@ export default function RoutePlaybackBar({
             disabled={!journey}
             aria-label={mainLabel}
             title={mainLabel}
-            className="grid place-items-center w-10 h-10 rounded-full bg-slate-900 text-white shadow-lg shadow-slate-900/25 hover:bg-slate-800 active:scale-95 transition-[transform,background-color] disabled:opacity-40 disabled:pointer-events-none"
+            className="grid place-items-center w-8 h-8 rounded-full bg-slate-900 text-white shadow-md shadow-slate-900/20 hover:bg-slate-800 active:scale-95 transition-[transform,background-color] disabled:opacity-40 disabled:pointer-events-none"
           >
             <MainIcon
               key={mainLabel}
-              className={`velora-pop w-4 h-4 ${
+              className={`velora-pop w-3.5 h-3.5 ${
                 MainIcon === Play ? "fill-current ml-0.5" : MainIcon === Pause ? "fill-current" : ""
               }`}
             />

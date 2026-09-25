@@ -12,7 +12,7 @@ export default function AuthNavLink() {
   return (
     <Link
       href={user ? "/visualiser" : "/login"}
-      className="font-sans text-sm md:text-base text-[#0a0a0a] no-underline transition-opacity duration-300 ease-in-out hover:opacity-70"
+      className="text-sm text-[#0a0a0a] no-underline transition-opacity duration-300 ease-in-out hover:opacity-70"
     >
       {user ? "Open app" : "Sign in"}
     </Link>

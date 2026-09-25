@@ -5,7 +5,7 @@ import React from 'react';
 /**
  * Reusable Button component with primary and secondary variants
  * Primary: Black background with white text
- * Secondary: White background with black border and text
+ * Secondary: White background with black text
  */
 export default function Button({
   variant = 'primary',
@@ -14,10 +14,10 @@ export default function Button({
   className = '',
   ...props
 }) {
-  const baseClasses = "font-sans px-4 sm:px-6 py-2 sm:py-3 rounded-[10px] text-sm sm:text-base font-normal leading-6 border-none cursor-pointer transition-all duration-300 ease-in-out text-center w-full sm:w-auto";
+  const baseClasses = "inline-flex items-center justify-center h-10 px-5 rounded-lg text-sm font-medium cursor-pointer transition-colors duration-200 w-full sm:w-auto";
   const variantClasses = variant === 'primary'
     ? "bg-black text-white hover:bg-[#1a1a1a] active:bg-[#0d0d0d]"
-    : "bg-white text-[#0a0a0a] border-2 border-black hover:bg-black hover:text-white active:bg-[#1a1a1a]";
+    : "bg-white text-[#0a0a0a] hover:bg-black hover:text-white active:bg-[#1a1a1a]";
 
   return (
     <button

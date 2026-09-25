@@ -15,14 +15,14 @@ function FAQItem({ question, answer, index }: FAQItemProps) {
     <div className={`border-b border-[#1e1e1e] last:border-0`}>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-start justify-between gap-6 py-7 text-left group"
+        className="w-full flex items-start justify-between gap-4 py-4 text-left group"
       >
-        <div className="flex items-start gap-5">
-          <span className="text-[11px] font-bold text-[#3a3a3a] tabular-nums shrink-0 pt-0.5 tracking-widest">
+        <div className="flex items-start gap-4">
+          <span className="w-5 text-2xs font-bold text-[#4a4a4a] tabular-nums shrink-0 pt-0.5 tracking-widest">
             {String(index + 1).padStart(2, "0")}
           </span>
           <span
-            className={`font-bold text-[15px] leading-snug tracking-tight transition-colors duration-200 ${
+            className={`font-bold text-sm leading-snug tracking-tight transition-colors duration-200 ${
               isOpen ? "text-white" : "text-[#999] group-hover:text-white"
             }`}
           >
@@ -31,7 +31,7 @@ function FAQItem({ question, answer, index }: FAQItemProps) {
         </div>
 
         <div
-          className={`w-7 h-7 border flex items-center justify-center shrink-0 mt-0.5 transition-all duration-300 ${
+          className={`w-6 h-6 border flex items-center justify-center shrink-0 transition-all duration-300 ${
             isOpen
               ? "border-white bg-white text-black"
               : "border-[#2a2a2a] text-[#666] group-hover:border-[#555]"
@@ -50,7 +50,7 @@ function FAQItem({ question, answer, index }: FAQItemProps) {
           isOpen ? "max-h-80 opacity-100" : "max-h-0 opacity-0"
         }`}
       >
-        <div className="pl-10 pr-10 pb-7 text-sm text-[#666] leading-relaxed">
+        <div className="pl-9 pr-10 pb-4 text-sm text-[#888] leading-relaxed">
           {answer}
         </div>
       </div>
@@ -126,7 +126,7 @@ export default function FAQSection() {
 
   return (
     <div className="w-full border border-[#1e1e1e] bg-[#0d0d0d]">
-      <div className="px-8 py-2">
+      <div className="px-5 py-1">
         {faqs.map((faq, idx) => (
           <FAQItem
             key={idx}

@@ -32,55 +32,56 @@ export default function OptimizationResult({
   return (
     <div className="fixed inset-0 z-90 flex items-center justify-center pointer-events-none">
       {/* Modal Container - Enable pointer events here */}
-      <div className="bg-white w-[90%] max-w-2xl max-h-[80vh] overflow-y-auto rounded-3xl shadow-2xl border border-slate-100 pointer-events-auto animate-in slide-in-from-bottom-10 fade-in duration-500">
+      <div className="bg-white w-[calc(100%-2rem)] max-w-2xl max-h-[80vh] overflow-y-auto velora-scroll rounded-2xl shadow-2xl ring-1 ring-slate-200/70 pointer-events-auto animate-in slide-in-from-bottom-10 fade-in duration-500">
         {/* Header */}
-        <div className="sticky top-0 bg-white/80 backdrop-blur-md p-6 border-b border-slate-100 flex justify-between items-center z-10">
+        <div className="sticky top-0 bg-white/90 backdrop-blur-md px-5 py-4 border-b border-slate-100 flex justify-between items-center z-10">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-green-100 text-green-600 rounded-xl">
-              <TrendingUp className="w-5 h-5" />
+            <div className="p-2 bg-green-100 text-green-600 rounded-lg">
+              <TrendingUp className="w-4 h-4" />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-slate-800">
+              <h2 className="text-base font-semibold text-slate-900">
                 Optimization Complete
               </h2>
-              <p className="text-xs text-slate-500 font-medium">
+              <p className="text-xs text-slate-500">
                 {vehicles.length} vehicles optimized
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-2 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
+            className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
+            aria-label="Close"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Content */}
-        <div className="p-6 space-y-8">
+        <div className="p-5 space-y-5">
           {/* Key Metrics Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="p-4 rounded-2xl bg-blue-50 border border-blue-100 flex flex-col gap-1">
-              <span className="text-xs font-bold text-blue-600 uppercase tracking-wider flex items-center gap-1">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <div className="p-3 rounded-xl bg-blue-50 border border-blue-100 flex flex-col gap-0.5">
+              <span className="text-2xs font-semibold text-blue-600 uppercase tracking-wider flex items-center gap-1">
                 <IndianRupee className="w-3 h-3" /> Total Cost
               </span>
-              <span className="text-2xl font-bold text-slate-800">
+              <span className="text-xl font-semibold tracking-tight text-slate-900 tabular-nums">
                 ₹{totalCost.toFixed(2)}
               </span>
             </div>
-            <div className="p-4 rounded-2xl bg-purple-50 border border-purple-100 flex flex-col gap-1">
-              <span className="text-xs font-bold text-purple-600 uppercase tracking-wider flex items-center gap-1">
+            <div className="p-3 rounded-xl bg-purple-50 border border-purple-100 flex flex-col gap-0.5">
+              <span className="text-2xs font-semibold text-purple-600 uppercase tracking-wider flex items-center gap-1">
                 <Clock className="w-3 h-3" /> Total Time
               </span>
-              <span className="text-2xl font-bold text-slate-800">
+              <span className="text-xl font-semibold tracking-tight text-slate-900 tabular-nums">
                 {Math.round(totalTime)} min
               </span>
             </div>
-            <div className="p-4 rounded-2xl bg-orange-50 border border-orange-100 flex flex-col gap-1">
-              <span className="text-xs font-bold text-orange-600 uppercase tracking-wider flex items-center gap-1">
+            <div className="p-3 rounded-xl bg-orange-50 border border-orange-100 flex flex-col gap-0.5">
+              <span className="text-2xs font-semibold text-orange-600 uppercase tracking-wider flex items-center gap-1">
                 <Map className="w-3 h-3" /> Vehicles Used
               </span>
-              <span className="text-2xl font-bold text-slate-800">
+              <span className="text-xl font-semibold tracking-tight text-slate-900 tabular-nums">
                 {vehicles.length}
               </span>
             </div>
@@ -88,19 +89,19 @@ export default function OptimizationResult({
 
           {/* Vehicle Breakdown */}
           <div>
-            <h3 className="text-sm font-bold text-slate-900 mb-4 px-1">
+            <h3 className="text-xs font-medium text-slate-500 mb-2">
               Vehicle Breakdown
             </h3>
-            <div className="space-y-3">
+            <div className="space-y-2">
               {vehicles.map((v) => (
                 <div
                   key={v.vehicle_id}
-                  className="group p-4 rounded-2xl border border-slate-100 bg-slate-50/50 hover:bg-white hover:shadow-md transition-all duration-300"
+                  className="p-3 rounded-xl border border-slate-100 bg-slate-50/50"
                 >
-                  <div className="flex justify-between items-start mb-3">
-                    <div className="flex items-center gap-3">
+                  <div className="flex justify-between items-start mb-2">
+                    <div className="flex items-center gap-2.5">
                       <div
-                        className={`px-2 py-3 rounded-xl flex items-center justify-center font-bold text-sm
+                        className={`px-2 h-8 rounded-lg flex items-center justify-center font-semibold text-xs
                                         ${
                                           v.vehicle_id.includes("V01")
                                             ? "bg-blue-100 text-blue-700"
@@ -112,37 +113,34 @@ export default function OptimizationResult({
                         {v.vehicle_id}
                       </div>
                       <div>
-                        <p className="text-sm font-bold text-slate-800">
+                        <p className="text-xs font-semibold text-slate-900">
                           {v.vehicle_type}
                         </p>
-                        <p className="text-xs text-slate-500">
+                        <p className="text-2xs text-slate-500">
                           {v.route_sequence.length - 2} Stops • {v.capacity}{" "}
                           Seats
                         </p>
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="flex items-center text-sm font-bold text-slate-800">
+                      <p className="flex items-center justify-end text-xs font-semibold text-slate-900 tabular-nums">
                         <IndianRupee className="w-3 h-3" />
                         {v.total_cost.toFixed(2)}
                       </p>
-                      <p className="text-xs text-slate-500">
+                      <p className="text-2xs text-slate-500">
                         {v.total_time_minutes.toFixed(0)} min
                       </p>
                     </div>
                   </div>
 
                   {/* Simple Route Visual */}
-                  <div className="relative pt-6 pb-2 px-2">
-                    {/* horizontal line that spans the whole area (moved slightly down so wrapped lines don't overlap too badly) */}
-                    <div className="absolute left-0 right-0 top-6 h-px bg-slate-200 -z-10" />
-
-                    {/* allow items to wrap to next line, reduce gap if needed */}
-                    <div className="flex flex-wrap gap-2 items-center text-[14px] font-medium text-slate-500">
+                  <div>
+                    {/* the stops in order; they wrap onto more lines on long routes */}
+                    <div className="flex flex-wrap gap-1 items-center text-2xs font-medium text-slate-600">
                       {v.route_sequence.map((step, idx) => (
                         <div
                           key={idx}
-                          className="bg-white px-2 py-1 border border-gray-300 rounded-lg max-w-40 wrap-break-words whitespace-normal"
+                          className="bg-white px-1.5 py-0.5 border border-slate-200 rounded-md max-w-40 wrap-break-word whitespace-normal"
                         >
                           {step.location === "office"
                             ? "🏢"
@@ -160,20 +158,20 @@ export default function OptimizationResult({
 
           {/* Violations */}
           {(softViolations.length > 0 || hardViolations.length > 0) && (
-            <div className="space-y-4">
-              <h3 className="text-sm font-bold text-slate-900 px-1">
+            <div className="space-y-2">
+              <h3 className="text-xs font-medium text-slate-500">
                 Optimization Violations
               </h3>
               
               {hardViolations.length > 0 && (
-                <div className="p-4 rounded-2xl border border-red-100 bg-red-50 text-red-800">
-                  <h4 className="text-xs font-bold uppercase tracking-wider mb-2 flex items-center gap-1">
+                <div className="p-3 rounded-xl border border-red-100 bg-red-50 text-red-800">
+                  <h4 className="text-2xs font-semibold uppercase tracking-wider mb-1 flex items-center gap-1">
                     <AlertCircle className="w-3 h-3" /> Hard Violations
                   </h4>
-                  <ul className="text-sm space-y-1">
+                  <ul className="text-xs space-y-0.5">
                     {hardViolations.map((v, i) => (
                       <li key={i}>
-                        <span className="font-bold">{v.employee_id}</span>: {v.type} ({v.actual} / {v.limit})
+                        <span className="font-semibold">{v.employee_id}</span>: {v.type} ({v.actual} / {v.limit})
                       </li>
                     ))}
                   </ul>
@@ -181,14 +179,14 @@ export default function OptimizationResult({
               )}
 
               {softViolations.length > 0 && (
-                <div className="p-4 rounded-2xl border border-orange-100 bg-orange-50 text-orange-800">
-                  <h4 className="text-xs font-bold uppercase tracking-wider mb-2 flex items-center gap-1">
+                <div className="p-3 rounded-xl border border-orange-100 bg-orange-50 text-orange-800">
+                  <h4 className="text-2xs font-semibold uppercase tracking-wider mb-1 flex items-center gap-1">
                     <AlertCircle className="w-3 h-3" /> Soft Violations
                   </h4>
-                  <ul className="text-sm space-y-1">
+                  <ul className="text-xs space-y-0.5">
                     {softViolations.map((v, i) => (
                       <li key={i}>
-                        <span className="font-bold">{v.employee_id}</span>: {v.type} ({v.actual} / limit {v.limit})
+                        <span className="font-semibold">{v.employee_id}</span>: {v.type} ({v.actual} / limit {v.limit})
                       </li>
                     ))}
                   </ul>
@@ -197,10 +195,10 @@ export default function OptimizationResult({
             </div>
           )}
 
-          <div className="flex justify-end pt-2">
+          <div className="flex justify-end">
             <button
               onClick={onClose}
-              className="px-6 py-2.5 bg-slate-900 text-white text-sm font-bold rounded-xl hover:bg-slate-800 transition-colors shadow-lg shadow-slate-200"
+              className="h-8 px-4 bg-slate-900 text-white text-xs font-medium rounded-lg hover:bg-slate-800 transition-colors"
             >
               View on Map
             </button>

@@ -1,5 +1,6 @@
 "use client";
 
+import { ChevronRight, ChevronsLeft } from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
 
 function ToggleSwitch({
@@ -19,11 +20,11 @@ function ToggleSwitch({
       className="flex items-center gap-2 cursor-pointer select-none"
     >
       {label && (
-        <span className="text-sm font-bold text-slate-700">{label}</span>
+        <span className="text-xs font-medium text-slate-700 whitespace-nowrap">{label}</span>
       )}
       <div
-        className={`flex w-10 h-5 rounded-full transition-colors duration-200 ${
-          checked ? "bg-black" : "bg-gray-600"
+        className={`flex w-7 h-4 rounded-full transition-colors duration-200 ${
+          checked ? "bg-slate-900" : "bg-slate-300"
         }`}
         aria-hidden
       >
@@ -37,7 +38,7 @@ function ToggleSwitch({
         />
         <span
           className={`my-auto w-3 h-3 bg-white rounded-full shadow transform transition-transform duration-200 ${
-            !checked ? "translate-x-1" : "translate-x-6"
+            !checked ? "translate-x-0.5" : "translate-x-3.5"
           }`}
         />
       </div>
@@ -45,8 +46,16 @@ function ToggleSwitch({
   );
 }
 
+const SURFACE = "bg-white rounded-xl shadow-lg shadow-slate-900/5 ring-1 ring-slate-200/70";
+
+const LEGENDS = [
+  { key: "office", label: "Office", dot: "bg-red-500" },
+  { key: "employees", label: "Employees", dot: "bg-blue-500" },
+  { key: "vehicles", label: "Vehicles", dot: "bg-green-500" },
+  { key: "routes", label: "Route Paths", dot: "bg-purple-500" },
+] as const;
+
 export default function BottomControlBar() {
-  // const { isSimulating, onStopSim } = props;
   const expanded = useAppStore((state) => state.legendsExpanded);
   const setExpanded = useAppStore((state) => state.setLegendsExpanded);
   const layers = useAppStore((state) => state.layers);
@@ -55,48 +64,25 @@ export default function BottomControlBar() {
   // Small pill used when collapsed
   const CollapsedPill = (
     <div
-      className="absolute bottom-6 right-24 z-30 bg-white rounded-2xl shadow-xl p-3 border border-slate-100 flex items-center gap-4 pr-5"
+      className={`absolute bottom-4 right-17 z-30 h-10 flex items-center gap-2 pl-3 pr-1 ${SURFACE}`}
       role="region"
       aria-label="Legends collapsed"
     >
-      <div className="flex items-center gap-2">
-        <div className="w-3 h-3 rounded-full bg-red-400 shadow-sm" />
-        <div className="w-3 h-3 rounded-full bg-green-400 shadow-sm -ml-1" />
-        <div className="w-3 h-3 rounded-full bg-purple-400 shadow-sm -ml-1" />
+      <div className="flex items-center">
+        <div className="w-2.5 h-2.5 rounded-full bg-red-400 ring-2 ring-white" />
+        <div className="w-2.5 h-2.5 rounded-full bg-green-400 ring-2 ring-white -ml-1" />
+        <div className="w-2.5 h-2.5 rounded-full bg-purple-400 ring-2 ring-white -ml-1" />
       </div>
 
-      <span className="text-sm font-bold text-slate-700 pl-2">Legends</span>
+      <span className="text-xs font-medium text-slate-700">Legends</span>
 
       <button
         aria-expanded={expanded}
         aria-label="Expand legends"
         onClick={() => setExpanded(true)}
-        className="ml-4 p-2 rounded-full hover:bg-slate-100 transition"
+        className="grid place-items-center w-8 h-8 rounded-lg text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition"
       >
-        {/* Left double chevrons (to mimic <<) */}
-        <svg
-          width="22"
-          height="22"
-          viewBox="0 0 24 24"
-          fill="none"
-          aria-hidden
-          xmlns="http://www.w3.org/2000/svg"
-        >
-          <path
-            d="M15 6 L9 12 L15 18"
-            stroke="black"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-          <path
-            d="M20 6 L14 12 L20 18"
-            stroke="black"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
+        <ChevronsLeft className="w-4 h-4" />
       </button>
     </div>
   );
@@ -106,106 +92,39 @@ export default function BottomControlBar() {
       {!expanded && CollapsedPill}
 
       <div
-        className={`absolute bottom-6 left-28 right-24 z-20 transition-all duration-300 ${
+        className={`absolute bottom-4 left-21 right-17 z-20 transition-all duration-300 ${
           expanded
             ? "opacity-100 pointer-events-auto"
             : "opacity-0 pointer-events-none"
         }`}
         aria-hidden={!expanded}
       >
-        <div className="bg-white rounded-2xl shadow-xl p-2 border border-slate-100 flex items-center justify-between px-6">
-          <div className="flex items-center gap-6">
-            {/* Legend Item: Office */}
-            <div className="flex items-center gap-3">
-              <div className="w-3 h-3 rounded-full bg-red-500 shadow-sm" />
-              <ToggleSwitch
-                id="legend-office"
-                label="Office"
-                checked={layers.office}
-                onChange={(v) => setLayer("office", v)}
-              />
-            </div>
-
-            <div className="h-6 border-l-2 border-slate-100" />
-
-            {/* Legend Item: Employees */}
-            <div className="flex items-center gap-3">
-              <div className="w-3 h-3 rounded-full bg-blue-500 shadow-sm" />
-              <ToggleSwitch
-                id="legend-employees"
-                label="Employees"
-                checked={layers.employees}
-                onChange={(v) => setLayer("employees", v)}
-              />
-            </div>
-
-            <div className="h-6 border-l-2 border-slate-100" />
-
-            {/* Legend Item: Vehicles */}
-            <div className="flex items-center gap-3">
-              <div className="w-3 h-3 rounded-full bg-green-500 shadow-sm" />
-              <ToggleSwitch
-                id="legend-vehicles"
-                label="Vehicles"
-                checked={layers.vehicles}
-                onChange={(v) => setLayer("vehicles", v)}
-              />
-            </div>
-
-            <div className="h-6 border-l-2 border-slate-100" />
-
-            {/* Legend Item: Route Paths */}
-            <div className="flex items-center gap-3">
-              <div className="w-3 h-3 rounded-full bg-purple-500 shadow-sm" />
-              <ToggleSwitch
-                id="legend-routes"
-                label="Route Paths"
-                checked={layers.routes}
-                onChange={(v) => {
-                  setLayer("routes", v);
-                }}
-              />
-            </div>
+        <div className={`h-10 flex items-center justify-between gap-3 pl-4 pr-1 ${SURFACE}`}>
+          <div className="flex items-center gap-4 min-w-0 overflow-x-auto scrollbar-hide">
+            {LEGENDS.map((legend, i) => (
+              <div key={legend.key} className="flex items-center gap-4 shrink-0">
+                {i > 0 && <div className="h-4 border-l border-slate-200" />}
+                <div className="flex items-center gap-2">
+                  <div className={`w-2 h-2 rounded-full ${legend.dot}`} />
+                  <ToggleSwitch
+                    id={`legend-${legend.key}`}
+                    label={legend.label}
+                    checked={layers[legend.key]}
+                    onChange={(v) => setLayer(legend.key, v)}
+                  />
+                </div>
+              </div>
+            ))}
           </div>
 
-          <div className="flex items-center gap-4">
-            {/* If simulating, show your stop-sim button (keeps original behavior) */}
-            {/* {isSimulating && (
-              <button
-                onClick={onStopSim}
-                className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-md transition-colors"
-                aria-label="Stop simulation"
-              >
-                Stop
-              </button>
-            )} */}
-
-            {/* Collapse button */}
-            <button
-              aria-label="Collapse legends"
-              aria-expanded={expanded}
-              onClick={() => setExpanded(false)}
-              className="p-3 rounded-full hover:bg-slate-100 transition"
-            >
-              {/* Right single chevron */}
-              <svg
-                width="22"
-                height="22"
-                viewBox="0 0 24 24"
-                fill="none"
-                aria-hidden
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path
-                  d="M8 6 L14 12 L8 18"
-                  stroke="black"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </button>
-          </div>
+          <button
+            aria-label="Collapse legends"
+            aria-expanded={expanded}
+            onClick={() => setExpanded(false)}
+            className="grid place-items-center w-8 h-8 shrink-0 rounded-lg text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition"
+          >
+            <ChevronRight className="w-4 h-4" />
+          </button>
         </div>
       </div>
     </>

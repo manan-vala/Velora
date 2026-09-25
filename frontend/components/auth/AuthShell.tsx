@@ -23,21 +23,21 @@ export function AuthShell({
   footer: ReactNode;
 }) {
   return (
-    <div className="auth-theme flex min-h-screen flex-col items-center justify-center gap-6 px-4 py-10">
+    <div className="auth-theme flex min-h-screen flex-col items-center justify-center gap-5 px-4 py-8">
       <Link href="/" className="flex flex-col items-center gap-1">
-        <span className="text-xl font-semibold tracking-tight">Velora</span>
+        <span className="text-lg font-semibold tracking-tight">Velora</span>
         <span className="text-muted-foreground text-xs">Corporate fleet routing</span>
       </Link>
 
-      <Card className="w-full max-w-sm gap-5 py-6 shadow-sm">
-        <CardHeader className="gap-1.5 px-6">
-          <CardTitle className="text-base">{title}</CardTitle>
+      <Card className="w-full max-w-sm gap-4 py-5 shadow-sm">
+        <CardHeader className="gap-1 px-5">
+          <CardTitle className="text-base font-semibold">{title}</CardTitle>
           <CardDescription className="text-sm">{description}</CardDescription>
         </CardHeader>
-        <CardContent className="px-6">{children}</CardContent>
+        <CardContent className="px-5">{children}</CardContent>
       </Card>
 
-      <p className="text-muted-foreground text-sm">{footer}</p>
+      <p className="text-muted-foreground text-xs">{footer}</p>
     </div>
   );
 }

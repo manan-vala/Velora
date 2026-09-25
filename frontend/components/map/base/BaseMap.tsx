@@ -3,7 +3,7 @@
 import "maplibre-gl/dist/maplibre-gl.css";
 
 import { useEffect, useState, type ReactNode } from "react";
-import MapGL, { type MapLayerMouseEvent } from "react-map-gl/maplibre";
+import MapGL, { AttributionControl, type MapLayerMouseEvent } from "react-map-gl/maplibre";
 import type { Map as MaplibreMap } from "maplibre-gl";
 
 import { BANGALORE, type LatLng } from "@/lib/map/geo";
@@ -19,6 +19,8 @@ interface BaseMapProps {
   onClick?: (event: MapLayerMouseEvent) => void;
   onReady?: (map: MaplibreMap) => void;
   onZoomEnd?: (zoom: number) => void;
+  /** Corner for the map credits, kept clear of the app's own overlays. */
+  attributionPosition?: "top-right" | "bottom-right";
   children?: ReactNode;
 }
 
@@ -34,6 +36,7 @@ export default function BaseMap({
   onClick,
   onReady,
   onZoomEnd,
+  attributionPosition = "bottom-right",
   children,
 }: BaseMapProps) {
   const [hovering, setHovering] = useState(false);
@@ -49,7 +52,7 @@ export default function BaseMap({
       initialViewState={{ latitude: center.lat, longitude: center.lng, zoom }}
       style={{ width: "100%", height: "100%" }}
       mapStyle={getMapStyle(theme)}
-      attributionControl={{ compact: true }}
+      attributionControl={false}
       dragRotate={false}
       pitchWithRotate={false}
       touchPitch={false}
@@ -66,6 +69,7 @@ export default function BaseMap({
       }}
       onZoomEnd={(event) => onZoomEnd?.(event.viewState.zoom)}
     >
+      <AttributionControl compact position={attributionPosition} />
       {children}
     </MapGL>
   );

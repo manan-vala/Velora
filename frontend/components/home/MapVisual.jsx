@@ -8,11 +8,11 @@ import Image from "next/image";
  */
 export default function MapVisual() {
   return (
-    <div className="absolute right-0 top-0 h-full flex items-end justify-end">
+    <div className="absolute right-0 top-0 h-full w-1/2 flex items-end justify-end">
       <Image
         src="/map-visuals.png"
         alt="Route optimization map showing optimized paths"
-        className="block w-auto max-w-none h-auto rounded-tl-[50px] shadow-lg max-h-full object-contain"
+        className="block w-auto max-w-full h-auto max-h-full rounded-tl-[50px] shadow-lg object-contain"
         width={600}
         height={600}
         priority

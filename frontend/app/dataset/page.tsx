@@ -1,8 +1,9 @@
 "use client";
 
-import { RequireAuth } from "@/components/auth/RequireAuth";
+import Link from "next/link";
 
-import { useRouter } from "next/navigation";
+import { RequireAuth } from "@/components/auth/RequireAuth";
+import TopToggle from "@/components/map/MapWidgets/TopToggle";
 import {
   Table,
   TableHeader,
@@ -13,155 +14,101 @@ import {
 } from "@/components/map/ui/table";
 import { useAppStore } from "@/store/useAppStore";
 
+function DataTable({
+  title,
+  accent,
+  rows,
+  emptyText,
+}: {
+  title: string;
+  accent: string;
+  rows: object[];
+  emptyText: string;
+}) {
+  return (
+    <section className="flex flex-col gap-2">
+      <div className="flex items-center gap-2">
+        <span className={`h-2 w-2 rounded-full ${accent}`} />
+        <h2 className="text-sm font-semibold text-slate-900">{title}</h2>
+        <span className="rounded-full bg-slate-100 px-2 text-2xs font-medium text-slate-500">
+          {rows.length} records
+        </span>
+      </div>
+      {rows.length > 0 ? (
+        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+          <Table className="min-w-175">
+            <TableHeader>
+              <TableRow className="border-slate-200 bg-slate-50 hover:bg-slate-50">
+                {Object.keys(rows[0]).map((key) => (
+                  <TableHead
+                    key={key}
+                    className="h-8 px-3 text-2xs font-medium uppercase tracking-wider text-slate-500"
+                  >
+                    {key.replace(/_/g, " ")}
+                  </TableHead>
+                ))}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rows.map((row, idx) => (
+                <TableRow key={idx} className="border-slate-100">
+                  {Object.values(row).map((val, i) => (
+                    <TableCell
+                      key={i}
+                      className="max-w-45 truncate px-3 py-1.5 tabular-nums text-slate-700"
+                    >
+                      {String(val)}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      ) : (
+        <p className="text-xs text-slate-400">{emptyText}</p>
+      )}
+    </section>
+  );
+}
+
 function DatasetScreen() {
   const data = useAppStore((s) => s.parsedData);
-  const router = useRouter();
 
   return (
-    <div className="min-h-screen bg-linear-to-br from-slate-50 via-white to-slate-100">
-      {/* Toggle Bar */}
-      <div className="absolute top-6 right-10 z-20 bg-white/90 rounded-xl p-1 shadow-md border border-slate-100 flex backdrop-blur-sm">
-        {/* If you have a sidebar, ensure its z-index is higher than 20, e.g. z-30 or z-50 */}
-        <button
-          className="px-4 py-2 text-slate-500 hover:bg-slate-50 rounded-lg text-sm font-medium transition-colors"
-          onClick={() => router.push("/visualiser")}
-        >
-          Map View
-        </button>
-        <button className="px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium shadow-sm">
-          Dataset
-        </button>
-      </div>
-      <div className="pt-28 pb-16 px-2 sm:px-6 flex justify-center">
-        <div className="w-full max-w-5xl">
-          <div className="bg-white/95 rounded-3xl shadow-2xl border border-slate-100 px-0 sm:px-8 py-10">
-            <h1 className="text-4xl font-extrabold mb-10 text-slate-900 tracking-tight text-center">
-              Uploaded Dataset
-            </h1>
-            {data ? (
-              <div className="space-y-16">
-                {/* Employees Table */}
-                <section>
-                  <div className="flex items-center gap-3 mb-6">
-                    <span className="inline-block w-2 h-7 bg-blue-500 rounded-full"></span>
-                    <h2 className="text-2xl font-bold text-slate-800">
-                      Employees
-                    </h2>
-                    <span className="ml-2 text-sm text-slate-400">
-                      {data.employees.length} records
-                    </span>
-                  </div>
-                  {data.employees && data.employees.length > 0 ? (
-                    <div className="overflow-x-auto rounded-xl">
-                      <Table className="min-w-175">
-                        <TableHeader>
-                          <TableRow className="bg-slate-50">
-                            {Object.keys(data.employees[0]).map((key) => (
-                              <TableHead
-                                key={key}
-                                className="sticky top-0 z-10 bg-slate-50 text-slate-700 font-semibold border-b border-slate-200"
-                              >
-                                {key.replace(/_/g, " ")}
-                              </TableHead>
-                            ))}
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {data.employees.map((emp, idx: number) => (
-                            <TableRow
-                              key={idx}
-                              className={
-                                idx % 2 === 0 ? "bg-white" : "bg-slate-50"
-                              }
-                            >
-                              {Object.values(emp).map((val, i) => (
-                                <TableCell
-                                  key={i}
-                                  className="text-slate-700 max-w-45 truncate"
-                                >
-                                  {String(val)}
-                                </TableCell>
-                              ))}
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  ) : (
-                    <div className="text-slate-400 mb-8">
-                      No employee data found.
-                    </div>
-                  )}
-                </section>
-
-                {/* Divider */}
-                <div className="flex items-center gap-2 my-2">
-                  <div className="flex-1 h-px bg-slate-200" />
-                  <span className="text-slate-400 text-xs font-medium tracking-widest">
-                    VEHICLES
-                  </span>
-                  <div className="flex-1 h-px bg-slate-200" />
-                </div>
-
-                {/* Vehicles Table */}
-                <section>
-                  <div className="flex items-center gap-3 mb-6">
-                    <span className="inline-block w-2 h-7 bg-green-500 rounded-full"></span>
-                    <h2 className="text-2xl font-bold text-slate-800">
-                      Vehicles
-                    </h2>
-                    <span className="ml-2 text-sm text-slate-400">
-                      {data.vehicles.length} records
-                    </span>
-                  </div>
-                  {data.vehicles && data.vehicles.length > 0 ? (
-                    <div className="overflow-x-auto rounded-xl">
-                      <Table className="min-w-175">
-                        <TableHeader>
-                          <TableRow className="bg-slate-50">
-                            {Object.keys(data.vehicles[0]).map((key) => (
-                              <TableHead
-                                key={key}
-                                className="sticky top-0 z-10 bg-slate-50 text-slate-700 font-semibold border-b border-slate-200"
-                              >
-                                {key.replace(/_/g, " ")}
-                              </TableHead>
-                            ))}
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {data.vehicles.map((veh, idx: number) => (
-                            <TableRow
-                              key={idx}
-                              className={
-                                idx % 2 === 0 ? "bg-white" : "bg-slate-50"
-                              }
-                            >
-                              {Object.values(veh).map((val, i) => (
-                                <TableCell
-                                  key={i}
-                                  className="text-slate-700 max-w-45 truncate"
-                                >
-                                  {String(val)}
-                                </TableCell>
-                              ))}
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  ) : (
-                    <div className="text-slate-400">No vehicle data found.</div>
-                  )}
-                </section>
-              </div>
-            ) : (
-              <div className="text-slate-500 text-center text-lg font-medium">
-                No dataset found. Please upload a dataset first.
-              </div>
-            )}
-          </div>
+    <div className="min-h-screen bg-slate-50">
+      <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 pt-4 pb-10">
+        <div className="flex items-center justify-between gap-4">
+          <h1 className="text-lg font-semibold tracking-tight text-slate-900">Uploaded Dataset</h1>
+          <TopToggle active="dataset" inline />
         </div>
+        {data ? (
+          <>
+            <DataTable
+              title="Employees"
+              accent="bg-blue-500"
+              rows={data.employees ?? []}
+              emptyText="No employee data found."
+            />
+            <DataTable
+              title="Vehicles"
+              accent="bg-green-500"
+              rows={data.vehicles ?? []}
+              emptyText="No vehicle data found."
+            />
+          </>
+        ) : (
+          <div className="rounded-xl border border-dashed border-slate-300 bg-white px-6 py-10 text-center">
+            <p className="text-sm font-medium text-slate-700">No dataset found</p>
+            <p className="mt-1 text-xs text-slate-500">
+              Upload a dataset on the{" "}
+              <Link href="/visualiser" className="font-medium text-slate-900 underline underline-offset-2">
+                map
+              </Link>{" "}
+              first.
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );
