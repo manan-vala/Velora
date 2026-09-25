@@ -16,12 +16,14 @@ import {
   Users,
   Car,
   LogOut,
+  Loader2,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useOptimization } from "@/hooks/useOptimization";
 import { useLogout, useSession } from "@/hooks/useSession";
 import { useAppStore } from "@/store/useAppStore"; // Zustand Store
 import { parseExcel } from "@/lib/excel-parser";
+import { DEMO_DATASETS, loadDemoFile, type DemoDataset } from "@/lib/demo-datasets";
 import { ParsedData, Employee, Vehicle } from "@/types";
 import OptimizationLoading from "./OptimizationLoading";
 import OptimizationResult from "./OptimizationResult";
@@ -75,6 +77,20 @@ export default function EloraSidebarLayout() {
       setShowResultsPopup(false);
     } catch (error) {
       console.error("Error parsing file:", error);
+    }
+  };
+
+  // Demo test cases load as real .xlsx files, the same as a picked file
+  const [loadingDemo, setLoadingDemo] = useState<string | null>(null);
+  const handleDemo = async (demo: DemoDataset) => {
+    if (loadingDemo) return;
+    setLoadingDemo(demo.id);
+    try {
+      await handleFileUpload(await loadDemoFile(demo));
+    } catch (error) {
+      console.error("Error loading demo dataset:", error);
+    } finally {
+      setLoadingDemo(null);
     }
   };
 
@@ -868,6 +884,33 @@ export default function EloraSidebarLayout() {
                   onChange={onFileChange}
                   className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                 />
+              </div>
+              <p className="text-2xs text-slate-400 mt-2 mb-1">or load a demo test case</p>
+              <div className="grid grid-cols-4 gap-1">
+                {DEMO_DATASETS.map((demo) => {
+                  const loaded = uploadedFile?.name === demo.file;
+                  return (
+                    <button
+                      key={demo.id}
+                      type="button"
+                      onClick={() => handleDemo(demo)}
+                      disabled={loadingDemo !== null}
+                      title={`${demo.note}: ${demo.employees} employees, ${demo.vehicles} vehicles`}
+                      aria-pressed={loaded}
+                      className={`h-6 rounded-md border text-2xs font-semibold flex items-center justify-center cursor-pointer transition-colors disabled:cursor-wait ${
+                        loaded
+                          ? "border-slate-900 bg-slate-900 text-white"
+                          : "border-slate-200 bg-white text-slate-700 hover:border-slate-400"
+                      }`}
+                    >
+                      {loadingDemo === demo.id ? (
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                      ) : (
+                        demo.label
+                      )}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}

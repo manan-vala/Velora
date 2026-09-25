@@ -3,8 +3,9 @@
 import { RequireAuth } from "@/components/auth/RequireAuth";
 
 import dynamic from "next/dynamic";
-import { Upload } from "lucide-react";
+import { Loader2, Upload } from "lucide-react";
 import { parseExcel } from "@/lib/excel-parser";
+import { DEMO_DATASETS, loadDemoFile, type DemoDataset } from "@/lib/demo-datasets";
 import { useAppStore } from "@/store/useAppStore";
 import TopToggle from "@/components/map/MapWidgets/TopToggle";
 import React from "react";
@@ -25,16 +26,35 @@ function VisualiserScreen() {
   const setParsedData = useAppStore((state) => state.setParsedData);
   const setUploadedFile = useAppStore((state) => state.setUploadedFile);
 
-  // Local state for drag-and-drop UI only
+  // Local state for the upload card only
   const [isDragging, setIsDragging] = React.useState(false);
+  const [loadingDemo, setLoadingDemo] = React.useState<string | null>(null);
+  const [loadError, setLoadError] = React.useState<string | null>(null);
 
   const handleFileUpload = async (file: File) => {
+    setLoadError(null);
     try {
       const parsed = await parseExcel(file);
       setUploadedFile(file);
       setParsedData(parsed);
     } catch (error) {
       console.error("Error parsing file:", error);
+      setLoadError("Couldn't read that file. Check it's an .xlsx in the expected format.");
+    }
+  };
+
+  // A demo test case is fetched as a real .xlsx and handled exactly like an upload
+  const handleDemo = async (demo: DemoDataset) => {
+    if (loadingDemo) return;
+    setLoadingDemo(demo.id);
+    setLoadError(null);
+    try {
+      await handleFileUpload(await loadDemoFile(demo));
+    } catch (error) {
+      console.error("Error loading demo dataset:", error);
+      setLoadError(`Couldn't load ${demo.label}. Please try again.`);
+    } finally {
+      setLoadingDemo(null);
     }
   };
 
@@ -119,6 +139,43 @@ function VisualiserScreen() {
                 className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
               />
             </div>
+
+            {/* Demo test cases for people without their own data */}
+            <div className="mt-6">
+              <div className="mb-3 flex items-center gap-3">
+                <div className="h-px flex-1 bg-slate-200" />
+                <span className="text-xs text-slate-400">or try a demo test case</span>
+                <div className="h-px flex-1 bg-slate-200" />
+              </div>
+              <div className="grid grid-cols-2 gap-2.5">
+                {DEMO_DATASETS.map((demo) => (
+                  <button
+                    key={demo.id}
+                    type="button"
+                    onClick={() => handleDemo(demo)}
+                    disabled={loadingDemo !== null}
+                    title={demo.note}
+                    className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 px-3.5 py-3 text-left transition-colors hover:border-slate-400 hover:bg-slate-50 disabled:cursor-wait disabled:opacity-60"
+                  >
+                    <span>
+                      <span className="block text-xs font-semibold text-slate-900">{demo.label}</span>
+                      <span className="mt-0.5 block text-2xs text-slate-500">
+                        {demo.employees} employees · {demo.vehicles} vehicles
+                      </span>
+                    </span>
+                    {loadingDemo === demo.id && (
+                      <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-slate-400" />
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {loadError && (
+              <p role="alert" className="mt-3 text-xs text-red-600">
+                {loadError}
+              </p>
+            )}
           </div>
         </div>
       )}
